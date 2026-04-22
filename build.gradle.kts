@@ -6,7 +6,11 @@ plugins {
 }
 
 dependencies {
+    val ktorVersion = "2.3.10"
     implementation("ch.qos.logback:logback-classic:1.4.11")
+    implementation("io.ktor:ktor-server-core-jvm:$ktorVersion")
+    implementation("io.ktor:ktor-server-netty-jvm:$ktorVersion")
+    implementation("io.ktor:ktor-server-html-builder-jvm:$ktorVersion")
 }
 
 tasks.jar { enabled = false }
