@@ -1,51 +1,32 @@
-# Simple Kotlin Gradle Template
+# NoammWeb
 
-A minimalist template for building Kotlin applications with Gradle.
+A website System made in Kotlin. 
 
 ## Tech Stack
+- Kotlin 1.9
+- Ktor (Netty engine)
+- kotlinx.html for templating
+- Gradle (ShadowJar for fat JAR)
 
-- **Language**: Kotlin
-- **Build System**: Gradle (Kotlin DSL)
-- **Plugin**: ShadowJar (8.1.1)
-- **Logging**: Logback Classic
-
-## 📂 Project Structure
-
-```text
-├── build.gradle.kts        # Main build configuration
-├── settings.gradle.kts     # Project settings
-├── src/
-│   └── main/
-│       ├── kotlin/         # Your Kotlin source code
-│       └── resources/      # Configuration files
-```
-
-## Getting Started
+## Setup and Building
 
 ### Requirements
+- JDK 17 or newer
 
-- [JDK 17+](https://adoptium.net/) installed on your machine.
-
-### Building the Project
-
-To compile the code and generate a "fat" JAR:
-
+### Build
+To build the project and generate the executable JAR:
 ```bash
 ./gradlew build
 ```
+The JAR will be located at `build/libs/NoammWeb.jar`.
 
-The resulting JAR file will be located in `build/libs/`.
-
-### Running the Application
-
-You can run the generated JAR using the following command:
-
+### Run
+The application looks for a `PORT` environment variable, defaulting to 3000 if not set.
 ```bash
-java -jar build/libs/SimpleKotlin.jar
+java -jar build/libs/NoammWeb.jar
 ```
 
-## Customization
-
-1. **Change Project Name**: Update `rootProject.name` in `settings.gradle.kts`.
-2. **Update Dependencies**: Add or modify libraries in `build.gradle.kts`.
-3. **Configure Logging**: Modify `src/main/resources/logback.xml` to adjust logging levels and appenders.
+## Project Structure
+- `NoammWeb.kt`: Server entry point and routing logic.
+- `bio/BioPage.kt`: The HTML template defined via DSL.
+- `src/main/resources/bio/`: Static assets (CSS/JS) loaded into the template at runtime.
