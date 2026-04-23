@@ -1,4 +1,5 @@
 import bio.BioPage
+import database.DatabasePage
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -20,6 +21,10 @@ object NoammWeb {
                 get("/") {
                     call.response.header("Cache-Control", "public, s-maxage=${cacheTime}")
                     call.respondHtml(HttpStatusCode.OK, BioPage::get)
+                }
+
+                get("/database") {
+                    call.respondHtml(HttpStatusCode.OK, DatabasePage::get)
                 }
             }
         }.start(wait = true)

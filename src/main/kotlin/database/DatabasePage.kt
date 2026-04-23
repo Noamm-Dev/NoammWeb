@@ -1,12 +1,14 @@
 package database
 
 import NoammWeb
+import bio.BioPage.styleCss
 import interfaces.WebPage
 import kotlinx.html.*
 
 object DatabasePage: WebPage() {
-    val styleCss by lazy { NoammWeb.readFile("bio/style.css") }
-    val scriptJs by lazy { NoammWeb.readFile("bio/script.js") }
+    private val bioStyleCss by lazy { NoammWeb.readFile("bio/style.css") }
+    private val styleCss by lazy { NoammWeb.readFile("database/style.css") }
+    private val scriptJs by lazy { NoammWeb.readFile("database/script.js") }
 
     override fun HTML.page() {
         head {
@@ -15,6 +17,7 @@ object DatabasePage: WebPage() {
             link("https://fonts.googleapis.com", "preconnect")
             link("https://fonts.gstatic.com", "preconnect") { attributes["crossorigin"] = "anonymous" }
             link("https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap", "stylesheet")
+            style { unsafe { + bioStyleCss } }
             style { unsafe { + styleCss } }
         }
         body {
@@ -26,87 +29,114 @@ object DatabasePage: WebPage() {
                             classes = setOf("profile-pic")
                             alt = "Profile Picture"
                         }
-                        h1 { + "Noamm" }
+                        h1 { + "Database Editor" }
                     }
 
-                    nav("tabs") {
-                        button(classes = "tab-btn active") {
-                            attributes["data-tab"] = "links"
-                            + "Links"
+                    div {
+                        id = "auth-screen"
+                        div("form-group") {
+                            label { + "Admin Password" }
+                            input(type = InputType.password, classes = "form-control") {
+                                id = "password"
+                                placeholder = "Enter Password"
+                            }
                         }
-                        button(classes = "tab-btn") {
-                            attributes["data-tab"] = "projects"
-                            + "Projects"
-                        }
-                        button(classes = "tab-btn") {
-                            attributes["data-tab"] = "extras"
-                            + "Extras"
+                        div("buttons") {
+                            button(classes = "btn") {
+                                attributes["onclick"] = "login()"
+                                + "Login"
+                            }
                         }
                     }
 
-                    div("content") {
-                        div("tab-content active") {
-                            id = "links"
-                            div("info-grid") {
-                                div("info-item") {
-                                    span("label") { + "Age" }
-                                    span("value") { + "18" }
-                                }
-                                div("info-item") {
-                                    span("label") { + "Pronouns" }
-                                    span("value") { + "He/Him" }
-                                }
-                                div("info-item") {
-                                    span("label") { + "Location" }
-                                    span("value") { + "Israel" }
-                                }
+                    // Application Screen
+                    div {
+                        id = "app-screen"
+                        nav("tabs") {
+                            button(classes = "tab tab-btn active") {
+                                attributes["onclick"] = "switchTab('list')"
+                                + "Entries"
                             }
-                            div("tags") {
-                                span("tag") { + "Developer" }
-                                span("tag") { + "Weeb" }
-                                span("tag") { + "Gamer" }
-                            }
-                            div("buttons") {
-                                a("https://discord.gg/bSNngAdpQF", "_blank", "project-card") {
-                                    classes = setOf("btn", "discord")
-                                    + "Discord"
-                                }
-                                a("https://github.com/Noamm9", "_blank", "project-card") {
-                                    classes = setOf("btn", "github")
-                                    + "GitHub"
-                                }
-                                a("https://www.paypal.com/paypalme/aziz6540", "_blank", "project-card") {
-                                    classes = setOf("btn", "paypal")
-                                    + "PayPal"
-                                }
+                            button(classes = "tab tab-btn") {
+                                attributes["onclick"] = "switchTab('edit')"
+                                + "Add/Edit"
                             }
                         }
 
-                        div("tab-content") {
-                            id = "projects"
-                            div("project-list") {
-                                a("https://github.com/Noamm9/NoammAddons", "_blank", "project-card") {
-                                    h3 { + "NoammAddons" }
+                        div("content") {
+                            // List Tab
+                            div("tab-content active") {
+                                id = "tab-list"
+                                div("database-grid") {
+                                    id = "entries-grid"
                                 }
-                                a("https://github.com/Noamm9/Noamm-Squared", "_blank", "project-card") {
-                                    h3 { + "Noamm-Squared" }
-                                }
-                                a("https://github.com/Noamm9/NVGRenderer", "_blank", "project-card") {
-                                    h3 { + "NVGRenderer" }
+                                div("buttons") {
+                                    style = "margin-top: 20px"
+                                    button(classes = "btn") {
+                                        attributes["onclick"] = "loadData()"
+                                        + "Refresh"
+                                    }
                                 }
                             }
-                        }
 
-                        div("tab-content") {
-                            id = "extras"
-                            div("buttons") {
-                                a("https://www.youtube.com/@PanddaBoyy", "_blank", "project-card") {
-                                    classes = setOf("btn", "youtube")
-                                    + "YouTube"
-                                }
-                                a("https://steamcommunity.com/id/207979311", "_blank", "project-card") {
-                                    classes = setOf("btn", "steam")
-                                    + "Steam"
+                            // Edit Tab
+                            div("tab-content") {
+                                id = "tab-edit"
+                                form {
+                                    id = "edit-form"
+                                    attributes["onsubmit"] = "saveEntry(event)"
+                                    div("form-group") {
+                                        label { + "Minecraft Player UUID" }
+                                        input(type = InputType.text, classes = "form-control") {
+                                            id = "entry-id"
+                                            placeholder = "7ab34814-ef33-4745-9af3-dd3fde6c57cd"
+                                            required = true
+                                        }
+                                    }
+                                    div("form-group") {
+                                        label { + "Name (JSON Component)" }
+                                        input(type = InputType.text, classes = "form-control") {
+                                            id = "entry-name"
+                                            placeholder = "{\"text\": \"Noamm\", \"color\": \"red\"}"
+                                        }
+                                    }
+                                    div("row") {
+                                        div("col form-group") {
+                                            label { + "Size X" }
+                                            input(type = InputType.number, classes = "form-control") {
+                                                id = "entry-x"
+                                                step = "0.01"
+                                                value = "1.0"
+                                            }
+                                        }
+                                        div("col form-group") {
+                                            label { + "Size Y" }
+                                            input(type = InputType.number, classes = "form-control") {
+                                                id = "entry-y"
+                                                step = "0.01"
+                                                value = "1.0"
+                                            }
+                                        }
+                                        div("col form-group") {
+                                            label { + "Size Z" }
+                                            input(type = InputType.number, classes = "form-control") {
+                                                id = "entry-z"
+                                                step = "0.01"
+                                                value = "1.0"
+                                            }
+                                        }
+                                    }
+                                    div("buttons") {
+                                        button(classes = "btn") {
+                                            type = ButtonType.submit
+                                            + "Save Entry"
+                                        }
+                                        button(classes = "btn") {
+                                            type = ButtonType.button
+                                            attributes["onclick"] = "switchTab('list')"
+                                            + "Cancel"
+                                        }
+                                    }
                                 }
                             }
                         }
