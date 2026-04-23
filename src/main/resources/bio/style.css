@@ -97,7 +97,7 @@ h1 {
 }
 
 .content {
-    min-height: 280px;
+    min-height: 330px;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;

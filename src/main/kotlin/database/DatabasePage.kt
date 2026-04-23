@@ -1,16 +1,16 @@
-package bio
+package database
 
 import NoammWeb
 import interfaces.WebPage
 import kotlinx.html.*
 
-object BioPage: WebPage() {
+object DatabasePage: WebPage() {
     val styleCss by lazy { NoammWeb.readFile("bio/style.css") }
     val scriptJs by lazy { NoammWeb.readFile("bio/script.js") }
 
     override fun HTML.page() {
         head {
-            title("Noamm | Bio")
+            title("Noamm | Database")
             link("https://minotar.net/helm/Noamm/64.png", "icon", "image/png")
             link("https://fonts.googleapis.com", "preconnect")
             link("https://fonts.gstatic.com", "preconnect") { attributes["crossorigin"] = "anonymous" }
@@ -66,16 +66,18 @@ object BioPage: WebPage() {
                                 span("tag") { + "Weeb" }
                                 span("tag") { + "Gamer" }
                             }
-
                             div("buttons") {
                                 a("https://discord.gg/bSNngAdpQF", "_blank", "project-card") {
-                                    h3 { + "Discord" }
+                                    classes = setOf("btn", "discord")
+                                    + "Discord"
                                 }
                                 a("https://github.com/Noamm9", "_blank", "project-card") {
-                                    h3 { + "GitHub" }
+                                    classes = setOf("btn", "github")
+                                    + "GitHub"
                                 }
                                 a("https://www.paypal.com/paypalme/aziz6540", "_blank", "project-card") {
-                                    h3 { + "PayPal" }
+                                    classes = setOf("btn", "paypal")
+                                    + "PayPal"
                                 }
                             }
                         }
@@ -99,10 +101,12 @@ object BioPage: WebPage() {
                             id = "extras"
                             div("buttons") {
                                 a("https://www.youtube.com/@PanddaBoyy", "_blank", "project-card") {
-                                    h3 { + "YouTube" }
+                                    classes = setOf("btn", "youtube")
+                                    + "YouTube"
                                 }
                                 a("https://steamcommunity.com/id/207979311", "_blank", "project-card") {
-                                    h3 { + "Steam" }
+                                    classes = setOf("btn", "steam")
+                                    + "Steam"
                                 }
                             }
                         }
