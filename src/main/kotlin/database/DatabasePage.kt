@@ -1,7 +1,6 @@
 package database
 
 import NoammWeb
-import bio.BioPage.styleCss
 import interfaces.WebPage
 import kotlinx.html.*
 
@@ -24,13 +23,7 @@ object DatabasePage: WebPage() {
             div("background")
             div("container") {
                 div("card") {
-                    header {
-                        img(src = "https://github.com/Noamm9.png") {
-                            classes = setOf("profile-pic")
-                            alt = "Profile Picture"
-                        }
-                        h1 { + "Database Editor" }
-                    }
+                    header { h1 { + "Database Editor" } }
 
                     div {
                         id = "auth-screen"

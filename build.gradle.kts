@@ -19,6 +19,9 @@ tasks.shadowJar {
     archiveBaseName.set(rootProject.name)
     archiveClassifier.set("")
     archiveVersion.set("")
+    
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
 }
 
 tasks.build.get().dependsOn(tasks.shadowJar)

@@ -22,8 +22,13 @@ async function loadData() {
     }
 
     try {
-        const res = await fetch(API_BASE, { headers: { 'Authorization': pass } })
-        if (res.status === 401) return alert('Invalid Password')
+        const res = await fetch(API_BASE, { method: 'GET', headers: { 'Authorization': pass } })
+
+        if (res.status === 401) {
+            localStorage.removeItem('db_pass')
+            return alert('Invalid Password')
+        }
+
         if (! res.ok) throw new Error(`Fetch failed: ${res.status}`)
 
         dbData = await res.json();
