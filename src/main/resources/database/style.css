@@ -2,14 +2,42 @@
 #app-screen { display: none; }
 
 .minecraft-text {
-    font-family: 'Fira Code', monospace;
-    font-size: 16px;
+    font-family: 'Minecraft', 'Fira Code', monospace;
+    font-size: 18px;
+    line-height: 1.1;
+    letter-spacing: 0;
     background: rgba(0, 0, 0, 0.5);
-    padding: 12px;
-    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 10px 12px;
+    border-radius: 10px;
     margin-bottom: 10px;
     color: #ffffff;
-    text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.8);
+    text-align: left;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+}
+
+.minecraft-text span {
+    font-family: inherit;
+}
+
+.preview-text {
+    min-height: 44px;
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+}
+
+.preview-text.is-empty {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.preview-text.is-empty span {
+    text-shadow: none !important;
 }
 
 .database-grid {

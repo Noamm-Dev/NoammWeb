@@ -16,6 +16,7 @@ object DatabasePage: WebPage() {
             link("https://fonts.googleapis.com", "preconnect")
             link("https://fonts.gstatic.com", "preconnect") { attributes["crossorigin"] = "anonymous" }
             link("https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap", "stylesheet")
+            link("https://cdn.jsdelivr.net/npm/typeface-minecraft@1.0.0/index.css", "stylesheet")
             style { unsafe { + bioStyleCss } }
             style { unsafe { + styleCss } }
         }
@@ -42,7 +43,6 @@ object DatabasePage: WebPage() {
                         }
                     }
 
-                    // Application Screen
                     div {
                         id = "app-screen"
                         nav("tabs") {
@@ -57,7 +57,6 @@ object DatabasePage: WebPage() {
                         }
 
                         div("content") {
-                            // List Tab
                             div("tab-content active") {
                                 id = "tab-list"
                                 div("database-grid") {
@@ -72,7 +71,6 @@ object DatabasePage: WebPage() {
                                 }
                             }
 
-                            // Edit Tab
                             div("tab-content") {
                                 id = "tab-edit"
                                 form {
@@ -91,6 +89,14 @@ object DatabasePage: WebPage() {
                                         input(type = InputType.text, classes = "form-control") {
                                             id = "entry-name"
                                             placeholder = "{\"text\": \"Noamm\", \"color\": \"red\"}"
+                                            attributes["oninput"] = "updateNamePreview()"
+                                        }
+                                    }
+                                    div("form-group") {
+                                        label { + "Preview" }
+                                        div("minecraft-text preview-text is-empty") {
+                                            id = "entry-name-preview"
+                                            + "No custom name yet"
                                         }
                                     }
                                     div("row") {

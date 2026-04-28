@@ -6,6 +6,35 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
     ? 'http://localhost:6767/database'
     : 'https://api.noamm.org/database'
 
+const MINECRAFT_COLORS = {
+    black: '#000000',
+    dark_blue: '#0000AA',
+    dark_green: '#00AA00',
+    dark_aqua: '#00AAAA',
+    dark_red: '#AA0000',
+    dark_purple: '#AA00AA',
+    gold: '#FFAA00',
+    gray: '#AAAAAA',
+    dark_gray: '#555555',
+    blue: '#5555FF',
+    green: '#55FF55',
+    aqua: '#55FFFF',
+    red: '#FF5555',
+    light_purple: '#FF55FF',
+    yellow: '#FFFF55',
+    white: '#FFFFFF'
+}
+
+const DEFAULT_COMPONENT_STYLE = {
+    color: '#FFFFFF',
+    bold: false,
+    italic: false,
+    underlined: false,
+    strikethrough: false,
+    shadow: true,
+    explicitShadowColor: null
+}
+
 async function login() {
     const pass = document.getElementById('password').value
     if (! pass) return alert('Password required')
@@ -67,6 +96,7 @@ async function saveEntry(e) {
         if (res.ok) {
             document.getElementById('edit-form').reset()
             document.getElementById('entry-id').readOnly = false
+            updateNamePreview()
             await loadData()
             switchTab('list')
         }
@@ -93,53 +123,215 @@ async function deleteEntry(id) {
 
 function parseMinecraftJSONToHTML(rawJson) {
     if (! rawJson) return ''
-    if (! rawJson.startsWith('{') && ! rawJson.startsWith('[')) return escapeHtml(rawJson)
+
+    const normalized = rawJson.trim()
+    if (! normalized) return ''
+    if (! normalized.startsWith('{') && ! normalized.startsWith('[')) return renderComponent(normalized, DEFAULT_COMPONENT_STYLE)
+
     try {
-        return renderComponent(JSON.parse(rawJson))
+        return renderComponent(JSON.parse(normalized), DEFAULT_COMPONENT_STYLE)
     }
     catch (e) {
-        return escapeHtml(rawJson)
+        return renderComponent(normalized, DEFAULT_COMPONENT_STYLE)
     }
 }
 
-function renderComponent(comp) {
-    if (! comp) return ''
-    if (typeof comp === 'string') return escapeHtml(comp)
-    if (Array.isArray(comp)) return comp.map(renderComponent).join('')
+function renderComponent(comp, inheritedStyle = DEFAULT_COMPONENT_STYLE) {
+    if (comp === undefined || comp === null) return ''
+    if (typeof comp === 'string' || typeof comp === 'number' || typeof comp === 'boolean') {
+        return renderTextSpan(comp.toString(), inheritedStyle)
+    }
+    if (Array.isArray(comp)) return comp.map(part => renderComponent(part, inheritedStyle)).join('')
 
+    const resolvedStyle = resolveComponentStyle(comp, inheritedStyle)
     let html = ''
 
     if (comp.text !== undefined && comp.text !== null && comp.text !== '') {
-        let styles = []
-
-        if (comp.color) {
-            const colors = {
-                'black': '#000000', 'dark_blue': '#0000AA', 'dark_green': '#00AA00', 'dark_aqua': '#00AAAA',
-                'dark_red': '#AA0000', 'dark_purple': '#AA00AA', 'gold': '#FFAA00', 'gray': '#AAAAAA',
-                'dark_gray': '#555555', 'blue': '#5555FF', 'green': '#55FF55', 'aqua': '#55FFFF',
-                'red': '#FF5555', 'light_purple': '#FF55FF', 'yellow': '#FFFF55', 'white': '#FFFFFF'
-            }
-
-            styles.push(`color: ${colors[comp.color] || comp.color}`)
-        }
-
-        if (comp.bold) styles.push(`font-weight: bold`)
-        if (comp.italic) styles.push(`font-style: italic`)
-
-        let textDecorations = []
-        if (comp.underlined) textDecorations.push('underline')
-        if (comp.strikethrough) textDecorations.push('line-through')
-        if (textDecorations.length > 0) styles.push(`text-decoration: ${textDecorations.join(' ')}`)
-
-        let styleStr = styles.length > 0 ? ` style="${styles.join(';')};"` : ''
-        html += `<span${styleStr}>${escapeHtml(comp.text.toString())}</span>`
+        html += renderTextSpan(comp.text.toString(), resolvedStyle)
     }
 
     if (comp.extra && Array.isArray(comp.extra)) {
-        html += comp.extra.map(renderComponent).join('')
+        html += comp.extra.map(part => renderComponent(part, resolvedStyle)).join('')
     }
 
     return html
+}
+
+function renderTextSpan(text, style) {
+    if (! text) return ''
+
+    const styles = [
+        `color: ${style.color}`,
+        `font-weight: ${style.bold ? '700' : '400'}`,
+        `font-style: ${style.italic ? 'italic' : 'normal'}`,
+        `text-decoration: ${getTextDecoration(style)}`
+    ]
+
+    const shadowColor = getEffectiveShadowColor(style)
+    styles.push(`text-shadow: ${shadowColor ? `2px 2px 0 ${shadowColor}` : 'none'}`)
+
+    return `<span style="${styles.join('; ')}">${escapeHtml(text)}</span>`
+}
+
+function resolveComponentStyle(comp, inheritedStyle) {
+    return {
+        color: resolveTextColor(comp.color, inheritedStyle.color),
+        bold: comp.bold !== undefined ? Boolean(comp.bold) : inheritedStyle.bold,
+        italic: comp.italic !== undefined ? Boolean(comp.italic) : inheritedStyle.italic,
+        underlined: comp.underlined !== undefined ? Boolean(comp.underlined) : inheritedStyle.underlined,
+        strikethrough: comp.strikethrough !== undefined ? Boolean(comp.strikethrough) : inheritedStyle.strikethrough,
+        shadow: comp.shadow !== undefined ? Boolean(comp.shadow) : inheritedStyle.shadow,
+        explicitShadowColor: resolveExplicitShadowColor(comp.shadowColor ?? comp.shadow_color, inheritedStyle.explicitShadowColor)
+    }
+}
+
+function resolveTextColor(colorValue, fallbackColor) {
+    if (colorValue === undefined || colorValue === null || colorValue === '') return fallbackColor
+    if (typeof colorValue === 'string' && colorValue.trim().toLowerCase() === 'reset') return DEFAULT_COMPONENT_STYLE.color
+    return normalizeColor(colorValue, fallbackColor, false)
+}
+
+function resolveExplicitShadowColor(shadowValue, fallbackShadowColor) {
+    if (shadowValue === undefined) return fallbackShadowColor
+    if (shadowValue === null || shadowValue === '') return null
+    if (typeof shadowValue === 'string' && shadowValue.trim().toLowerCase() === 'reset') return null
+    return normalizeColor(shadowValue, fallbackShadowColor, true)
+}
+
+function normalizeColor(colorValue, fallbackColor, preferArgb) {
+    if (typeof colorValue === 'number') return intToCssColor(colorValue, preferArgb) || fallbackColor
+
+    const raw = colorValue.toString().trim()
+    if (! raw) return fallbackColor
+
+    const namedColor = MINECRAFT_COLORS[raw.toLowerCase()]
+    if (namedColor) return namedColor
+
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(raw)) return raw
+    if (/^0x[0-9a-f]{6}$/i.test(raw)) return `#${raw.slice(2)}`
+    if (/^0x[0-9a-f]{8}$/i.test(raw)) return argbHexToRgba(raw.slice(2))
+    if (/^-?\d+$/.test(raw)) return intToCssColor(Number(raw), preferArgb) || fallbackColor
+    if (window.CSS && CSS.supports && CSS.supports('color', raw)) return raw
+
+    return fallbackColor
+}
+
+function intToCssColor(colorValue, preferArgb) {
+    if (! Number.isFinite(colorValue)) return null
+
+    const normalized = colorValue >>> 0
+    if (! preferArgb || normalized <= 0xFFFFFF) {
+        return `#${normalized.toString(16).padStart(6, '0').slice(-6)}`
+    }
+
+    return argbToRgba(normalized)
+}
+
+function argbHexToRgba(hexValue) {
+    return argbToRgba(parseInt(hexValue, 16))
+}
+
+function argbToRgba(colorValue) {
+    const alpha = ((colorValue >>> 24) & 0xFF) / 255
+    const red = (colorValue >>> 16) & 0xFF
+    const green = (colorValue >>> 8) & 0xFF
+    const blue = colorValue & 0xFF
+    return `rgba(${red}, ${green}, ${blue}, ${formatAlpha(alpha)})`
+}
+
+function formatAlpha(alpha) {
+    return Number(alpha.toFixed(3))
+}
+
+function getTextDecoration(style) {
+    let decorations = []
+    if (style.underlined) decorations.push('underline')
+    if (style.strikethrough) decorations.push('line-through')
+    return decorations.length > 0 ? decorations.join(' ') : 'none'
+}
+
+function getEffectiveShadowColor(style) {
+    if (! style.shadow) return null
+    return style.explicitShadowColor || deriveShadowColor(style.color)
+}
+
+function deriveShadowColor(colorValue) {
+    const parsedColor = parseColor(colorValue)
+    if (! parsedColor) return 'rgba(63, 63, 63, 1)'
+
+    const red = Math.floor(parsedColor.red * 0.25)
+    const green = Math.floor(parsedColor.green * 0.25)
+    const blue = Math.floor(parsedColor.blue * 0.25)
+    return `rgba(${red}, ${green}, ${blue}, ${formatAlpha(parsedColor.alpha)})`
+}
+
+function parseColor(colorValue) {
+    const raw = (colorValue || '').toString().trim()
+    if (! raw) return null
+
+    let match = raw.match(/^#([0-9a-f]{3})$/i)
+    if (match) {
+        return {
+            red: parseInt(match[1][0] + match[1][0], 16),
+            green: parseInt(match[1][1] + match[1][1], 16),
+            blue: parseInt(match[1][2] + match[1][2], 16),
+            alpha: 1
+        }
+    }
+
+    match = raw.match(/^#([0-9a-f]{6})$/i)
+    if (match) {
+        return {
+            red: parseInt(match[1].slice(0, 2), 16),
+            green: parseInt(match[1].slice(2, 4), 16),
+            blue: parseInt(match[1].slice(4, 6), 16),
+            alpha: 1
+        }
+    }
+
+    match = raw.match(/^#([0-9a-f]{8})$/i)
+    if (match) {
+        return {
+            red: parseInt(match[1].slice(0, 2), 16),
+            green: parseInt(match[1].slice(2, 4), 16),
+            blue: parseInt(match[1].slice(4, 6), 16),
+            alpha: parseInt(match[1].slice(6, 8), 16) / 255
+        }
+    }
+
+    match = raw.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/i)
+    if (match) {
+        return {
+            red: clampColor(match[1]),
+            green: clampColor(match[2]),
+            blue: clampColor(match[3]),
+            alpha: clampAlpha(match[4] !== undefined ? Number(match[4]) : 1)
+        }
+    }
+
+    return null
+}
+
+function clampColor(value) {
+    return Math.max(0, Math.min(255, Math.round(Number(value) || 0)))
+}
+
+function clampAlpha(value) {
+    return Math.max(0, Math.min(1, value))
+}
+
+function updateNamePreview() {
+    const preview = document.getElementById('entry-name-preview')
+    const rawName = document.getElementById('entry-name').value.trim()
+
+    if (! rawName) {
+        preview.classList.add('is-empty')
+        preview.innerHTML = '<span>No custom name yet</span>'
+        return
+    }
+
+    preview.classList.remove('is-empty')
+    preview.innerHTML = parseMinecraftJSONToHTML(rawName)
 }
 
 function renderList() {
@@ -155,11 +347,7 @@ function renderList() {
     for (const [id, data] of entries) {
         let nameHtml = ''
         if (data.name && data.name.trim() !== '') {
-            nameHtml = `
-                <div class="minecraft-text">
-                    ${parseMinecraftJSONToHTML(data.name)}
-                </div>
-            `
+            nameHtml = `<div class="minecraft-text">${parseMinecraftJSONToHTML(data.name)}</div>`
         }
 
         let sizes = []
@@ -195,6 +383,7 @@ function editEntry(id) {
     document.getElementById('entry-x').value = data.sizeX !== undefined ? data.sizeX : 1
     document.getElementById('entry-y').value = data.sizeY !== undefined ? data.sizeY : 1
     document.getElementById('entry-z').value = data.sizeZ !== undefined ? data.sizeZ : 1
+    updateNamePreview()
     switchTab('edit')
 }
 
@@ -228,3 +417,5 @@ else {
     document.getElementById('auth-screen').style.display = 'block'
     document.getElementById('app-screen').style.display = 'none'
 }
+
+updateNamePreview()
