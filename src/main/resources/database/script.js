@@ -64,8 +64,7 @@ async function loadData() {
         document.getElementById('auth-screen').style.display = 'none'
         document.getElementById('app-screen').style.display = 'block'
         renderList();
-    }
-    catch (e) {
+    } catch (e) {
         alert('Error loading data: ' + e.message)
         console.error(e)
     }
@@ -99,13 +98,11 @@ async function saveEntry(e) {
             updateNamePreview()
             await loadData()
             switchTab('list')
-        }
-        else {
+        } else {
             const err = await res.text()
             alert('Save failed: ' + err)
         }
-    }
-    catch (e) {
+    } catch (e) {
         alert('Error saving: ' + e.message)
     }
 }
@@ -115,8 +112,7 @@ async function deleteEntry(id) {
     try {
         const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE', headers: { 'Authorization': getAuth() } })
         if (res.ok) await loadData(); else alert('Delete failed')
-    }
-    catch (e) {
+    } catch (e) {
         alert('Error deleting: ' + e.message);
     }
 }
@@ -130,8 +126,7 @@ function parseMinecraftJSONToHTML(rawJson) {
 
     try {
         return renderComponent(JSON.parse(normalized), DEFAULT_COMPONENT_STYLE)
-    }
-    catch (e) {
+    } catch (e) {
         return renderComponent(normalized, DEFAULT_COMPONENT_STYLE)
     }
 }
@@ -338,13 +333,7 @@ function renderList() {
     const grid = document.getElementById('entries-grid')
     grid.innerHTML = ''
 
-    const entries = Object.entries(dbData).sort((a, b) => {
-        const nameA = a[1].name || ''
-        const nameB = b[1].name || ''
-        return nameA.localeCompare(nameB)
-    })
-
-    for (const [id, data] of entries) {
+    for (const [id, data] of Object.entries(dbData)) {
         let nameHtml = ''
         if (data.name && data.name.trim() !== '') {
             nameHtml = `<div class="minecraft-text">${parseMinecraftJSONToHTML(data.name)}</div>`
@@ -356,9 +345,7 @@ function renderList() {
         if (data.sizeZ !== undefined && data.sizeZ !== 1) sizes.push(`Z: ${data.sizeZ}`)
 
         let sizeHtml = ''
-        if (sizes.length > 0) {
-            sizeHtml = `<span class="size-tag">📏 ${sizes.join(' | ')}</span>`
-        }
+        if (sizes.length > 0) sizeHtml = `<span class="size-tag">📏 ${sizes.join(' | ')}</span>`
 
         const item = document.createElement('div')
         item.className = 'database-item'
@@ -395,8 +382,7 @@ function switchTab(tab) {
         document.querySelectorAll('.tab')[0].classList.add('active')
         document.getElementById('tab-list').classList.add('active')
         document.getElementById('entry-id').readOnly = false;
-    }
-    else {
+    } else {
         document.querySelectorAll('.tab')[1].classList.add('active')
         document.getElementById('tab-edit').classList.add('active')
     }
