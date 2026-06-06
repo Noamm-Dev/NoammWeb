@@ -1,27 +1,88 @@
-repositories { mavenCentral() }
+import com.github.gradle.node.NodeExtension
+import com.github.gradle.node.npm.task.NpmTask
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.gradle.jvm.tasks.Jar
 
 plugins {
-    kotlin("jvm") version "1.9.23"
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    kotlin("jvm") version "1.9.23" apply false
+    id("com.github.johnrengelman.shadow") version "8.1.1" apply false
+    id("com.github.node-gradle.node") version "7.1.0" apply false
 }
 
-dependencies {
+project(":frontend") {
+    layout.buildDirectory.set(rootProject.layout.buildDirectory)
+
+    plugins.apply("com.github.node-gradle.node")
+
+    configure<NodeExtension> {
+        download.set(false)
+        nodeProjectDir.set(file(projectDir))
+    }
+
+    val buildReact = tasks.register<NpmTask>("buildReact") {
+        dependsOn(tasks.named("npmInstall"))
+        args.set(listOf("run", "build"))
+        inputs.dir(file("src"))
+        inputs.file(file("package.json"))
+        outputs.dir(file("dist"))
+    }
+
+    val reactConfiguration by configurations.creating {
+        isCanBeConsumed = true
+        isCanBeResolved = false
+    }
+
+    artifacts {
+        add(reactConfiguration.name, file("dist")) {
+            builtBy(buildReact)
+        }
+    }
+}
+
+project(":backend") {
+    layout.buildDirectory.set(rootProject.layout.buildDirectory)
+
+    plugins.apply("org.jetbrains.kotlin.jvm")
+    plugins.apply("com.github.johnrengelman.shadow")
+
+    repositories {
+        mavenCentral()
+    }
+
     val ktorVersion = "2.3.10"
-    implementation("ch.qos.logback:logback-classic:1.4.11")
-    implementation("io.ktor:ktor-server-core-jvm:$ktorVersion")
-    implementation("io.ktor:ktor-server-netty-jvm:$ktorVersion")
-    implementation("io.ktor:ktor-server-html-builder-jvm:$ktorVersion")
-}
+    dependencies {
+        add("implementation", "ch.qos.logback:logback-classic:1.4.11")
+        add("implementation", "io.ktor:ktor-server-core-jvm:$ktorVersion")
+        add("implementation", "io.ktor:ktor-server-netty-jvm:$ktorVersion")
+        add("implementation", "io.ktor:ktor-server-default-headers:$ktorVersion")
+    }
 
-tasks.jar { enabled = false }
-tasks.shadowJar {
-    manifest { attributes["Main-Class"] = rootProject.name }
-    archiveBaseName.set(rootProject.name)
-    archiveClassifier.set("")
-    archiveVersion.set("")
-    
-    isPreserveFileTimestamps = false
-    isReproducibleFileOrder = true
-}
+    val reactClient by configurations.creating {
+        isCanBeConsumed = false
+        isCanBeResolved = true
+    }
 
-tasks.build.get().dependsOn(tasks.shadowJar)
+    dependencies {
+        add("reactClient", project(":frontend", configuration = "reactConfiguration"))
+    }
+
+    tasks.withType<ProcessResources> {
+        dependsOn(reactClient)
+        from(reactClient) {
+            into("static")
+        }
+    }
+
+    tasks.named<Jar>("jar") { enabled = false }
+
+    tasks.withType<ShadowJar> {
+        manifest { attributes["Main-Class"] = rootProject.name }
+        archiveBaseName.set(rootProject.name)
+        archiveClassifier.set("")
+        archiveVersion.set("")
+        isPreserveFileTimestamps = false
+        isReproducibleFileOrder = true
+    }
+
+    tasks.named("build") { dependsOn(tasks.named("shadowJar")) }
+}
