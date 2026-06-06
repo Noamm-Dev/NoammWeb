@@ -9,33 +9,29 @@ plugins {
     id("com.github.node-gradle.node") version "7.1.0" apply false
 }
 
-project(":frontend") {
-    layout.buildDirectory.set(rootProject.layout.buildDirectory)
+plugins.apply("com.github.node-gradle.node")
 
-    plugins.apply("com.github.node-gradle.node")
+configure<NodeExtension> {
+    download.set(false)
+    nodeProjectDir.set(file(projectDir))
+}
 
-    configure<NodeExtension> {
-        download.set(false)
-        nodeProjectDir.set(file(projectDir))
-    }
+val buildReact = tasks.register<NpmTask>("buildReact") {
+    dependsOn(tasks.named("npmInstall"))
+    args.set(listOf("run", "build"))
+    inputs.dir(file("src/frontend"))
+    inputs.file(file("package.json"))
+    outputs.dir(file("dist"))
+}
 
-    val buildReact = tasks.register<NpmTask>("buildReact") {
-        dependsOn(tasks.named("npmInstall"))
-        args.set(listOf("run", "build"))
-        inputs.dir(file("src"))
-        inputs.file(file("package.json"))
-        outputs.dir(file("dist"))
-    }
+val reactConfiguration: Configuration by configurations.creating {
+    isCanBeConsumed = true
+    isCanBeResolved = false
+}
 
-    val reactConfiguration by configurations.creating {
-        isCanBeConsumed = true
-        isCanBeResolved = false
-    }
-
-    artifacts {
-        add(reactConfiguration.name, file("dist")) {
-            builtBy(buildReact)
-        }
+artifacts {
+    add(reactConfiguration.name, file("dist")) {
+        builtBy(buildReact)
     }
 }
 
@@ -44,6 +40,13 @@ project(":backend") {
 
     plugins.apply("org.jetbrains.kotlin.jvm")
     plugins.apply("com.github.johnrengelman.shadow")
+
+    configure<SourceSetContainer> {
+        named("main") {
+            java.srcDirs("src")
+            resources.srcDirs("resources")
+        }
+    }
 
     repositories {
         mavenCentral()
@@ -63,7 +66,7 @@ project(":backend") {
     }
 
     dependencies {
-        add("reactClient", project(":frontend", configuration = "reactConfiguration"))
+        add("reactClient", project(":", configuration = "reactConfiguration"))
     }
 
     tasks.withType<ProcessResources> {
@@ -84,5 +87,5 @@ project(":backend") {
         isReproducibleFileOrder = true
     }
 
-    tasks.named("build") { dependsOn(tasks.named("shadowJar")) }
+    tasks.named("build").get().dependsOn(tasks.named("shadowJar").get())
 }

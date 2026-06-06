@@ -66,12 +66,12 @@ export const HOME_ACTIONS: Record<HomeTab, HomeAction[]> = {
   extras: [
     {
       href: "https://www.youtube.com/@PanddaBoyy",
-      label: "YouTube",
+      label: "YouTube Channel",
       target: "_blank"
     },
     {
       href: "https://steamcommunity.com/id/207979311",
-      label: "Steam",
+      label: "Steam Profile",
       target: "_blank"
     },
     {
