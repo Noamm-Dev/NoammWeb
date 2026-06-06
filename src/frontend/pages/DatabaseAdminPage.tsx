@@ -246,7 +246,7 @@ export function DatabaseAdminPage() {
         hasName: entry.hasCustomName(),
         hasScale: entry.hasCustomScale(),
         normalizedUuid: normalizeUuid(uuid),
-        searchText: [ uuid, entry.getName(), plainDisplayName ].join(" ").toLowerCase(),
+        searchText: [ uuid, uuid.replaceAll("-", ""), entry.getName(), plainDisplayName ].join(" ").toLowerCase(),
         uuid
       }
     })
