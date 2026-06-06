@@ -235,6 +235,8 @@ export function MePage() {
 
   const skinUrl = `https://mc-heads.net/skin/${ encodeURIComponent(player.username ?? player.uuid) }`
   const displayLabel = player.username ?? player.uuid
+  const birdFlopRgbUrl = `https://www.birdflop.com/resources/rgb/?colors=%5B%7B%22hex%22%3A%22%233E9FD3%22%2C%22pos%22%3A100%7D%5D&text=${ encodeURIComponent(displayLabel) }&format=%7B%22color%22%3A%22JSON%22%7D`
+
 
   return (
     <main className="relative flex min-h-screen items-center justify-center px-4 py-5 sm:px-6 lg:px-8">
@@ -281,6 +283,22 @@ export function MePage() {
                   placeholder={ `{"text":"${ displayLabel }","color":"#4498DB"}` }
                   value={ databaseEntry.getName() }
                 />
+                <p className="mb-2 mt-2 flex items-center gap-1.5 text-xs font-semibold text-white/42">
+                  <span aria-hidden="true">ⓘ</span>
+                  <span>
+                    To format a custom name, use{" "}
+                    <a
+                      className="text-cyan-200/85 transition hover:text-cyan-100"
+                      href={ birdFlopRgbUrl }
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      BirdFlop RGB
+                    </a>
+                    .
+                  </span>
+                </p>
+
               </div>
 
               <div>
