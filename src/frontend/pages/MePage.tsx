@@ -278,7 +278,7 @@ export function MePage() {
                   icon={ <Type className="h-3.5 w-3.5" aria-hidden="true"/> }
                   label="Custom Name (JSON Component)"
                   onChange={ event => setCustomName(event.target.value) }
-                  placeholder='{"text":"Noamm","color":"red"}'
+                  placeholder={ `{"text":"${ displayLabel }","color":"#4498DB"}` }
                   value={ databaseEntry.getName() }
                 />
               </div>
