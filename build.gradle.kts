@@ -56,7 +56,7 @@ project(":backend") {
     dependencies {
         add("implementation", "ch.qos.logback:logback-classic:1.4.11")
         add("implementation", "io.ktor:ktor-server-core-jvm:$ktorVersion")
-        add("implementation", "io.ktor:ktor-server-netty-jvm:$ktorVersion")
+        add("implementation", "io.ktor:ktor-server-cio:$ktorVersion")
         add("implementation", "io.ktor:ktor-server-default-headers:$ktorVersion")
     }
 
