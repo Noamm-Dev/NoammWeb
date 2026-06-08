@@ -4,7 +4,8 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.jvm.tasks.Jar
 
 plugins {
-    kotlin("jvm") version "1.9.23" apply false
+    kotlin("jvm") version "2.2.0" apply false
+    kotlin("plugin.serialization") version "2.2.0" apply false
     id("com.github.johnrengelman.shadow") version "8.1.1" apply false
     id("com.github.node-gradle.node") version "7.1.0" apply false
 }
@@ -39,12 +40,16 @@ project(":backend") {
     layout.buildDirectory.set(rootProject.layout.buildDirectory)
 
     plugins.apply("org.jetbrains.kotlin.jvm")
+    plugins.apply("org.jetbrains.kotlin.plugin.serialization")
     plugins.apply("com.github.johnrengelman.shadow")
 
     configure<SourceSetContainer> {
         named("main") {
             java.srcDirs("src")
             resources.srcDirs("resources")
+        }
+        named("test") {
+            java.srcDirs("test")
         }
     }
 
@@ -58,6 +63,9 @@ project(":backend") {
         add("implementation", "io.ktor:ktor-server-core-jvm:$ktorVersion")
         add("implementation", "io.ktor:ktor-server-cio:$ktorVersion")
         add("implementation", "io.ktor:ktor-server-default-headers:$ktorVersion")
+        add("implementation", "org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+        add("testImplementation", "org.jetbrains.kotlin:kotlin-test")
+        add("testImplementation", "org.jetbrains.kotlin:kotlin-test-junit")
     }
 
     val reactClient by configurations.creating {
@@ -74,6 +82,10 @@ project(":backend") {
         from(reactClient) {
             into("static")
         }
+    }
+
+    tasks.withType<Test> {
+        useJUnit()
     }
 
     tasks.named<Jar>("jar") { enabled = false }

@@ -11,11 +11,9 @@ object NoammWeb {
 
     @JvmStatic
     fun main(args: Array<String>) {
-        val port = System.getenv("PORT")?.toInt() ?: 3000
-
-        embeddedServer(CIO, port) {
+        embeddedServer(CIO, System.getenv("PORT")?.toInt() ?: 3000) {
             install(DefaultHeaders) {
-                header("X-Engine", "Ktor")
+                header("X-Engine", "Ktor-CIO")
                 header("Cache-Control", "public, s-maxage=$cacheTime")
             }
 
