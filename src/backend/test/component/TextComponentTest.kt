@@ -50,9 +50,27 @@ class TextComponentTest {
     }
 
     @Test
-    fun testDecodeTagHex() {
-        val input = "<#FFFFFF>&l&o&n&m&kf<#A6F2C4>&l&o&n&m&kf<#AEF5CF>&l&o&n&m&ku<#B5F9DA>&l&o&n&m&kc<#BDFCE5>&l&o&n&m&kh<#C4FFF0>&l&o&n&m&ks<#C2FFEC>&l&o&n&m&ki<#C0FFE9>&l&o&n&m&ka<#BEFFE5>&l&o&n&m&k🌺"
+    fun testRoundTripJson() {
+        val input =
+            """{"text":"","extra":[{"text":"f","color":"#FFFFFF","bold":true,"italic":true,"underlined":true,"strikethrough":true,"obfuscated":true,"shadow_color":[1.0,0.0,0.0,1.0]},{"text":"f","color":"#A6F2C4","bold":true,"italic":true,"underlined":true,"strikethrough":true,"obfuscated":true,"shadow_color":[0.6,0.39,0.91,1.0]},{"text":"u","color":"#AEF5CF","bold":true,"italic":true,"underlined":true,"strikethrough":true,"obfuscated":true,"shadow_color":[0.54,0.51,0.87,1.0]},{"text":"c","color":"#B5F9DA","bold":true,"italic":true,"underlined":true,"strikethrough":true,"obfuscated":true,"shadow_color":[0.49,0.64,0.84,1.0]},{"text":"h","color":"#BDFCE5","bold":true,"italic":true,"underlined":true,"strikethrough":true,"obfuscated":true,"shadow_color":[0.43,0.76,0.81,1.0]},{"text":"s","color":"#C4FFF0","bold":true,"italic":true,"underlined":true,"strikethrough":true,"obfuscated":true,"shadow_color":[0.37,0.89,0.77,1.0]},{"text":"i","color":"#C2FFEC","bold":true,"italic":true,"underlined":true,"strikethrough":true,"obfuscated":true,"shadow_color":[0.52,0.86,0.8,1.0]},{"text":"a","color":"#C0FFE9","bold":true,"italic":true,"underlined":true,"strikethrough":true,"obfuscated":true,"shadow_color":[0.66,0.83,0.82,1.0]},{"text":"🌺","color":"#BEFFE5","bold":true,"italic":true,"underlined":true,"strikethrough":true,"obfuscated":true,"shadow_color":[0.8,0.8,0.85,1.0]}]}"""
         val component = TextComponent.decode(input)
-        assertEquals(expectedPlainText, component.plainText)
+        val encoded = TextComponent.encode(Format.JSON, component)
+        assertEquals(input, encoded)
+    }
+
+    @Test
+    fun testEncodeAmpersandHex() {
+        val input = "&#FFFFFF&l&o&n&m&kf&#A6F2C4&l&o&n&m&kf&#AEF5CF&l&o&n&m&ku&#B5F9DA&l&o&n&m&kc&#BDFCE5&l&o&n&m&kh&#C4FFF0&l&o&n&m&ks&#C2FFEC&l&o&n&m&ki&#C0FFE9&l&o&n&m&ka&#BEFFE5&l&o&n&m&k🌺"
+        val component = TextComponent.decode(input)
+        val encoded = TextComponent.encode(Format.AMPERSAND_HEX, component)
+        assertEquals(input, encoded)
+    }
+
+    @Test
+    fun testEncodeLegacySection() {
+        val input = "§x§F§F§F§F§F§F§l§o§n§m§kf§x§A§6§F§2§C§4§l§o§n§m§kf§x§A§E§F§5§C§F§l§o§n§m§ku§x§B§5§F§9§D§A§l§o§n§m§kc§x§B§D§F§C§E§5§l§o§n§m§kh§x§C§4§F§F§F§0§l§o§n§m§ks§x§C§2§F§F§E§C§l§o§n§m§ki§x§C§0§F§F§E§9§l§o§n§m§ka§x§B§E§F§F§E§5§l§o§n§m§k🌺"
+        val component = TextComponent.decode(input)
+        val encoded = TextComponent.encode(Format.LEGACY_SECTION, component)
+        assertEquals(input, encoded)
     }
 }
