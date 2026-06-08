@@ -63,9 +63,6 @@ project(":backend") {
         add("implementation", "io.ktor:ktor-server-core-jvm:$ktorVersion")
         add("implementation", "io.ktor:ktor-server-cio:$ktorVersion")
         add("implementation", "io.ktor:ktor-server-default-headers:$ktorVersion")
-        add("implementation", "org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
-        add("testImplementation", "org.jetbrains.kotlin:kotlin-test")
-        add("testImplementation", "org.jetbrains.kotlin:kotlin-test-junit")
     }
 
     val reactClient by configurations.creating {
@@ -99,5 +96,5 @@ project(":backend") {
         isReproducibleFileOrder = true
     }
 
-    tasks.named("build").get().dependsOn(tasks.named("shadowJar").get())
+    tasks.named("build").get().dependsOn(tasks.named("shadowJar"))
 }
