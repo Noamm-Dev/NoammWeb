@@ -2,7 +2,7 @@ import AuthSession from "./AuthSession"
 import { dashedUUID } from "./minecraft-profile"
 import type { MeResponse, ProfilePlayer } from "../types/profile"
 import { isJsonRecord } from '../utils.ts'
-import DatabaseEntry from '../types/DatabaseEntry.ts'
+import DatabaseEntry, { type DatabaseData } from '../types/DatabaseEntry.ts'
 
 type McIdVerifyResponse = | { authenticated: false } | { authenticated: true, authorized: false, error: string } | {
   apiKey: string
@@ -98,12 +98,13 @@ class NoammApi {
     return DatabaseEntry.fromUnknown(data)
   }
 
-  async getEntries(authToken: string) {
-    const payload = await this.request("/database/admin", {
+  async getDatabase(authToken: string) {
+    const database = await this.request<DatabaseData>("/database/admin", {
       method: "GET", headers: { Authorization: authToken }
     })
 
-    return DatabaseEntry.entriesFromUnknown(payload)
+    database.entries = DatabaseEntry.entriesFromUnknown(database.entries)
+    return database
   }
 
   async saveEntry(uuid: string, authToken: string, entry: DatabaseEntry) {

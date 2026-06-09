@@ -4,6 +4,16 @@ import { mapValues } from 'remeda'
 
 export type DatabaseEntryAxis = "x" | "y" | "z"
 
+export interface DatabaseData {
+  entries: Record<string, DatabaseEntry>,
+  owners: Record<string, DatabaseOwner>,
+}
+
+export interface DatabaseOwner {
+  hasName: boolean
+  hasSize: boolean
+}
+
 export default class DatabaseEntry {
   private name: string
   private sizeX: number

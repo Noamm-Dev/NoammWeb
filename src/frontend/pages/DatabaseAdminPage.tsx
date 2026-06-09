@@ -9,7 +9,7 @@ import { TextField } from "../components/TextField"
 import { isMinecraftUsername, lookupMinecraftUsername, type MinecraftProfileLookup, normalizeUuid } from "../lib/minecraft-profile"
 import { getPlainMinecraftText } from "../lib/minecraft-text"
 import { notify } from "../lib/notifications"
-import DatabaseEntry from "../types/DatabaseEntry"
+import DatabaseEntry, { type DatabaseOwner } from "../types/DatabaseEntry"
 import { STORAGE_KEY } from '../content/database'
 import { getErrorMessage } from '../utils.ts'
 import NoammApi, { NoammApiError } from '../lib/NoammApi.ts'
@@ -96,6 +96,9 @@ export function DatabaseAdminPage() {
   const [ authToken, setAuthToken ] = useState(() => window.localStorage.getItem(STORAGE_KEY) || "")
   const [ password, setPassword ] = useState("")
   const [ entries, setEntries ] = useState<Record<string, DatabaseEntry>>({})
+  // @ts-ignore
+  // noinspection JSUnusedLocalSymbols
+  const [ owners, setOwners ] = useState<Record<string, DatabaseOwner>>({}) // todo
   const [ searchTerm, setSearchTerm ] = useState("")
   const [ entryFilter, setEntryFilter ] = useState<EntryFilter>("all")
   const [ isLoading, setIsLoading ] = useState(Boolean(authToken))
@@ -117,6 +120,7 @@ export function DatabaseAdminPage() {
     window.localStorage.removeItem(STORAGE_KEY)
     setAuthToken("")
     setEntries({})
+    setOwners({})
     setEntryDialog(null)
     setDeleteDialog(null)
   }, [])
@@ -125,8 +129,9 @@ export function DatabaseAdminPage() {
       if (options.showLoading ?? true) setIsLoading(true)
 
       try {
-        const entries = await NoammApi.getEntries(token)
-        setEntries(entries)
+        const database = await NoammApi.getDatabase(token)
+        setEntries(database.entries)
+        setOwners(database.owners)
         setErrorMessage(null)
         return true
       }
