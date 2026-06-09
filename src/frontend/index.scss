@@ -98,6 +98,17 @@ button:disabled {
   color: transparent;
 }
 
+.app-navigation {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding: 1rem 1rem 0;
+}
+
+.app-navigation-page > main {
+  min-height: calc(100vh - 4.75rem);
+}
+
 .animate-panel-in {
   animation: panel-in 0.28s ease both;
 }
