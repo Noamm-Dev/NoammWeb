@@ -1,5 +1,5 @@
 import { Suspense, useMemo, useState } from "react"
-import { RotateCcw, Type } from "lucide-react"
+import { RotateCcw, Type, UserRound } from "lucide-react"
 import { ActionButton } from "../components/ActionButton"
 import { MinecraftSkinViewer } from "../components/MinecraftSkinViewer"
 import { MinecraftTextPreview } from "../components/MinecraftTextPreview"
@@ -15,6 +15,7 @@ type ScaleInputState = Record<ScaleAxis, string>
 
 const PREVIEW_USERNAME = "Noamm"
 
+const isMinecraftUsername = (value: string) => /^[a-zA-Z0-9_]{3,16}$/.test(value.trim())
 const formatScaleInput = (value: number | null | undefined) => typeof value === "number" && Number.isFinite(value) ? String(value) : "1"
 const scaleToScaleInput = (scale: Scale): ScaleInputState => ({
   x: formatScaleInput(scale.x),
@@ -51,14 +52,17 @@ const getScaleSliderValue = (value: string, fallback: number) => {
 }
 
 export function PreviewPage() {
+  const [ minecraftUsername, setMinecraftUsername ] = useState(PREVIEW_USERNAME)
   const [ customName, setCustomName ] = useState("")
   const [ scaleInput, setScaleInput ] = useState<ScaleInputState>(() => scaleToScaleInput(DEFAULT_SCALE))
 
   const parsedScale = useMemo(() => parseScaleInputState(scaleInput), [ scaleInput ])
+  const requestedUsername = minecraftUsername.trim() || PREVIEW_USERNAME
+  const previewUsername = isMinecraftUsername(requestedUsername) ? requestedUsername : PREVIEW_USERNAME
   const previewScale = parsedScale.error === null ? parsedScale.value : DEFAULT_SCALE
-  const nameTag = customName.trim() || PREVIEW_USERNAME
-  const skinUrl = `https://mc-heads.net/skin/${ encodeURIComponent(PREVIEW_USERNAME) }`
-  const birdFlopRgbUrl = `https://www.birdflop.com/resources/rgb/?colors=%5B%7B%22hex%22%3A%22%233E9FD3%22%2C%22pos%22%3A100%7D%5D&text=${ encodeURIComponent(PREVIEW_USERNAME) }&format=%7B%22color%22%3A%22JSON%22%7D`
+  const nameTag = customName.trim() || previewUsername
+  const skinUrl = `https://mc-heads.net/skin/${ encodeURIComponent(previewUsername) }`
+  const birdFlopRgbUrl = `https://www.birdflop.com/resources/rgb/?colors=%5B%7B%22hex%22%3A%22%233E9FD3%22%2C%22pos%22%3A100%7D%5D&text=${ encodeURIComponent(previewUsername) }&format=%7B%22color%22%3A%22JSON%22%7D`
 
   const setCustomScale = (axis: ScaleAxis, value: string) => {
     const normalizedValue = value.replace(/,/g, ".")
@@ -72,7 +76,7 @@ export function PreviewPage() {
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/38">Preview</p>
             <h1 className="gradient-text mt-1 break-words text-3xl font-extrabold leading-tight sm:text-4xl">
-              { PREVIEW_USERNAME }
+              { previewUsername }
             </h1>
           </div>
         </div>
@@ -83,10 +87,21 @@ export function PreviewPage() {
               <div className="max-w-[730px]">
                 <TextField
                   autoComplete="off"
+                  icon={ <UserRound className="h-3.5 w-3.5" aria-hidden="true"/> }
+                  label="Minecraft Account"
+                  onChange={ event => setMinecraftUsername(event.target.value) }
+                  placeholder={ PREVIEW_USERNAME }
+                  value={ minecraftUsername }
+                />
+              </div>
+
+              <div className="max-w-[730px]">
+                <TextField
+                  autoComplete="off"
                   icon={ <Type className="h-3.5 w-3.5" aria-hidden="true"/> }
                   label="Custom Name (JSON Component)"
                   onChange={ event => setCustomName(event.target.value) }
-                  placeholder={ `{"text":"${ PREVIEW_USERNAME }","color":"#4498DB"}` }
+                  placeholder={ `{"text":"${ previewUsername }","color":"#4498DB"}` }
                   value={ customName }
                 />
                 <p className="mb-2 mt-2 flex items-center gap-1.5 text-xs font-semibold text-white/42">
@@ -114,7 +129,7 @@ export function PreviewPage() {
                 <div className="max-w-[730px]">
                   <MinecraftTextPreview
                     className="minecraft-preview-centered"
-                    emptyLabel={ PREVIEW_USERNAME }
+                    emptyLabel={ previewUsername }
                     value={ customName }
                   />
                 </div>
