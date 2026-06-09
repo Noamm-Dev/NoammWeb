@@ -2,7 +2,7 @@ import AuthSession from "./AuthSession"
 import { dashedUUID } from "./minecraft-profile"
 import type { MeResponse, ProfilePlayer } from "../types/profile"
 import { isJsonRecord } from '../utils.ts'
-import DatabaseEntry, { type DatabaseData } from '../types/DatabaseEntry.ts'
+import DatabaseEntry, { databaseOwnerFromUnknown, databaseOwnersFromUnknown, type DatabaseData, type DatabaseOwner } from '../types/DatabaseEntry.ts'
 
 type McIdVerifyResponse = | { authenticated: false } | { authenticated: true, authorized: false, error: string } | {
   apiKey: string
@@ -104,7 +104,17 @@ class NoammApi {
     })
 
     database.entries = DatabaseEntry.entriesFromUnknown(database.entries)
+    database.owners = databaseOwnersFromUnknown(database.owners)
     return database
+  }
+
+  async getOwner(uuid: string, authToken: string) {
+    const data = await this.request(`/database/admin/owner/${ encodeURIComponent(uuid) }`, {
+      method: "GET",
+      headers: { "Authorization": authToken }
+    })
+
+    return databaseOwnerFromUnknown(data)
   }
 
   async saveEntry(uuid: string, authToken: string, entry: DatabaseEntry) {
@@ -115,6 +125,23 @@ class NoammApi {
         "Authorization": authToken
       },
       body: JSON.stringify(entry)
+    })
+  }
+
+  async saveOwner(uuid: string, authToken: string, owner: DatabaseOwner) {
+    await this.requestText(`/database/admin/owner/${ encodeURIComponent(uuid) }`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": authToken
+      },
+      body: JSON.stringify(owner)
+    })
+  }
+
+  async deleteOwner(uuid: string, authToken: string) {
+    await this.requestVoid(`/database/admin/owner/${ encodeURIComponent(uuid) }`, {
+      method: "DELETE", headers: { "Authorization": authToken }
     })
   }
 

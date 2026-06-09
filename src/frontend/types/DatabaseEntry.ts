@@ -14,6 +14,20 @@ export interface DatabaseOwner {
   hasSize: boolean
 }
 
+export const databaseOwnerFromUnknown = (value: unknown): DatabaseOwner => {
+  if (! isJsonRecord(value)) return { hasName: false, hasSize: false }
+
+  return {
+    hasName: value.hasName === true,
+    hasSize: value.hasSize === true
+  }
+}
+
+export const databaseOwnersFromUnknown = (value: unknown): Record<string, DatabaseOwner> => {
+  if (! isJsonRecord(value)) return {}
+  return mapValues(value, databaseOwnerFromUnknown)
+}
+
 export default class DatabaseEntry {
   private name: string
   private sizeX: number

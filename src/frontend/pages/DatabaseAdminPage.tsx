@@ -2,8 +2,11 @@ import { Database, KeyRound, LogOut, Menu, Plus, RefreshCw, Search, SlidersHoriz
 import { type FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import noammHelm from "../assets/noamm-helm.png"
 import { ActionButton } from "../components/ActionButton"
+import { DatabaseAddChoiceModal } from "../components/DatabaseAddChoiceModal"
 import { DatabaseEntryModal } from "../components/DatabaseEntryModal"
 import { DatabaseEntryRow } from "../components/DatabaseEntryRow"
+import { DatabaseOwnerOnlyRow } from "../components/DatabaseOwnerOnlyRow"
+import { DatabaseOwnerModal, type DatabaseOwnerPayload } from "../components/DatabaseOwnerModal"
 import { SiteCredit } from "../components/SiteCredit"
 import { TextField } from "../components/TextField"
 import { isMinecraftUsername, lookupMinecraftUsername, type MinecraftProfileLookup, normalizeUuid } from "../lib/minecraft-profile"
@@ -14,8 +17,9 @@ import { STORAGE_KEY } from '../content/database'
 import { getErrorMessage } from '../utils.ts'
 import NoammApi, { NoammApiError } from '../lib/NoammApi.ts'
 
-type EntryDialogState = | { mode: "add" } | { entry: DatabaseEntry, mode: "edit", uuid: string }
+type EntryDialogState = | { mode: "add", uuid?: string } | { entry: DatabaseEntry, mode: "edit", uuid: string }
 type DeleteDialogState = { entry: DatabaseEntry, uuid: string }
+type OwnerDeleteDialogState = { owner: DatabaseOwner, uuid: string }
 type EntryFilter = "all" | "named" | "scaled"
 
 type MinecraftLookupState =
@@ -28,6 +32,12 @@ interface FilterTab {
   label: string
   value: EntryFilter
 }
+
+const DELETE_CONFIRM_LABELS = [
+  "Are you sure?",
+  "Are you reallyyyy sure?",
+  "Are you really really sure?"
+] as const
 
 interface DatabaseMenuContentProps {
   isLoading: boolean
@@ -96,16 +106,21 @@ export function DatabaseAdminPage() {
   const [ authToken, setAuthToken ] = useState(() => window.localStorage.getItem(STORAGE_KEY) || "")
   const [ password, setPassword ] = useState("")
   const [ entries, setEntries ] = useState<Record<string, DatabaseEntry>>({})
-  // @ts-ignore
-  // noinspection JSUnusedLocalSymbols
-  const [ owners, setOwners ] = useState<Record<string, DatabaseOwner>>({}) // todo
+  const [ owners, setOwners ] = useState<Record<string, DatabaseOwner>>({})
   const [ searchTerm, setSearchTerm ] = useState("")
   const [ entryFilter, setEntryFilter ] = useState<EntryFilter>("all")
   const [ isLoading, setIsLoading ] = useState(Boolean(authToken))
   const [ isSavingEntry, setIsSavingEntry ] = useState(false)
+  const [ isSavingOwner, setIsSavingOwner ] = useState(false)
   const [ deletingUuid, setDeletingUuid ] = useState<string | null>(null)
+  const [ deletingOwnerUuid, setDeletingOwnerUuid ] = useState<string | null>(null)
+  const [ deleteConfirmStep, setDeleteConfirmStep ] = useState(0)
+  const [ ownerDeleteConfirmStep, setOwnerDeleteConfirmStep ] = useState(0)
+  const [ isAddChoiceOpen, setIsAddChoiceOpen ] = useState(false)
   const [ deleteDialog, setDeleteDialog ] = useState<DeleteDialogState | null>(null)
+  const [ ownerDeleteDialog, setOwnerDeleteDialog ] = useState<OwnerDeleteDialogState | null>(null)
   const [ entryDialog, setEntryDialog ] = useState<EntryDialogState | null>(null)
+  const [ isOwnerDialogOpen, setIsOwnerDialogOpen ] = useState(false)
   const [ isFilterMenuOpen, setIsFilterMenuOpen ] = useState(false)
   const [ isMobileMenuOpen, setIsMobileMenuOpen ] = useState(false)
   const [ minecraftLookup, setMinecraftLookup ] = useState<MinecraftLookupState | null>(null)
@@ -121,8 +136,13 @@ export function DatabaseAdminPage() {
     setAuthToken("")
     setEntries({})
     setOwners({})
+    setIsAddChoiceOpen(false)
     setEntryDialog(null)
+    setIsOwnerDialogOpen(false)
     setDeleteDialog(null)
+    setOwnerDeleteDialog(null)
+    setDeleteConfirmStep(0)
+    setOwnerDeleteConfirmStep(0)
   }, [])
 
   const loadEntries = useCallback(async (token: string, options: { showLoading?: boolean } = {}) => {
@@ -217,6 +237,28 @@ export function DatabaseAdminPage() {
   }, [ deleteDialog, deletingUuid ])
 
   useEffect(() => {
+    if (! ownerDeleteDialog) return
+
+    const originalBodyOverflow = document.body.style.overflow
+    const originalHtmlOverflow = document.documentElement.style.overflow
+
+    document.body.style.overflow = "hidden"
+    document.documentElement.style.overflow = "hidden"
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && ! deletingOwnerUuid) setOwnerDeleteDialog(null)
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow
+      document.documentElement.style.overflow = originalHtmlOverflow
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [ ownerDeleteDialog, deletingOwnerUuid ])
+
+  useEffect(() => {
     if (! isMinecraftUsername(normalizedSearchTerm)) return
 
     const abortController = new AbortController()
@@ -242,6 +284,7 @@ export function DatabaseAdminPage() {
   const resolvedSearchUuid = activeMinecraftLookup?.status === "resolved" ? normalizeUuid(activeMinecraftLookup.profile.uuid) : null
 
   const sortedEntries = useMemo(() => Object.entries(entries), [ entries ])
+  const sortedOwners = useMemo(() => Object.entries(owners), [ owners ])
   const searchableEntries = useMemo(() => {
     return sortedEntries.map(([ uuid, entry ]) => {
       const plainDisplayName = getPlainMinecraftText(entry.getName())
@@ -256,6 +299,19 @@ export function DatabaseAdminPage() {
       }
     })
   }, [ sortedEntries ])
+
+  const ownerOnlyItems = useMemo(() => {
+    return sortedOwners
+      .filter(([ uuid ]) => ! entries[uuid])
+      .map(([ uuid, owner ]) => ({
+        hasName: owner.hasName,
+        hasScale: owner.hasSize,
+        normalizedUuid: normalizeUuid(uuid),
+        owner,
+        searchText: [ uuid, uuid.replaceAll("-", "") ].join(" ").toLowerCase(),
+        uuid
+      }))
+  }, [ entries, sortedOwners ])
 
   const filteredEntries = useMemo(() => {
     const entriesMatchingFilter = searchableEntries.filter((item) => {
@@ -273,18 +329,36 @@ export function DatabaseAdminPage() {
     })
   }, [ entryFilter, normalizedSearchTerm, resolvedSearchUuid, searchableEntries ])
 
+  const filteredOwnerOnlyItems = useMemo(() => {
+    const ownersMatchingFilter = ownerOnlyItems.filter((item) => {
+      if (entryFilter === "named") return item.hasName
+      if (entryFilter === "scaled") return item.hasScale
+      return true
+    })
+
+    if (! normalizedSearchTerm) return ownersMatchingFilter
+
+    return ownersMatchingFilter.filter((item) => {
+      const textMatches = item.searchText.includes(normalizedSearchTerm)
+      const minecraftUsernameMatches = resolvedSearchUuid ? item.normalizedUuid === resolvedSearchUuid : false
+      return textMatches || minecraftUsernameMatches
+    })
+  }, [ entryFilter, normalizedSearchTerm, ownerOnlyItems, resolvedSearchUuid ])
+
   const stats = useMemo(() => {
     const namedCount = searchableEntries.filter((item) => item.hasName).length
     const sizeCount = searchableEntries.filter((item) => item.hasScale).length
-    const profit = (namedCount + sizeCount) * 10
+    const ownerOnlyNamedCount = ownerOnlyItems.filter((item) => item.hasName).length
+    const ownerOnlySizeCount = ownerOnlyItems.filter((item) => item.hasScale).length
+    const profit = (namedCount + sizeCount + ownerOnlyNamedCount + ownerOnlySizeCount) * 10
 
     return {
       money: profit,
-      namedEntries: namedCount,
-      scaledEntries: sizeCount,
-      totalEntries: searchableEntries.length
+      namedEntries: namedCount + ownerOnlyNamedCount,
+      scaledEntries: sizeCount + ownerOnlySizeCount,
+      totalEntries: searchableEntries.length + ownerOnlyItems.length
     }
-  }, [ searchableEntries ])
+  }, [ ownerOnlyItems, searchableEntries ])
 
   const filterTabs = useMemo<FilterTab[]>(() => [
     { label: "All", value: "all" },
@@ -322,16 +396,32 @@ export function DatabaseAdminPage() {
     setIsMobileMenuOpen(false)
   }, [ clearSession ])
 
-  const handleAddEntry = useCallback(() => {
+  const handleOpenAddChoice = useCallback(() => {
     setErrorMessage(null)
     setSuccessMessage(null)
+    setIsAddChoiceOpen(true)
+  }, [])
+
+  const handleSelectEntryAdd = useCallback(() => {
+    setIsAddChoiceOpen(false)
     setEntryDialog({ mode: "add" })
+  }, [])
+
+  const handleSelectOwnerAdd = useCallback(() => {
+    setIsAddChoiceOpen(false)
+    setIsOwnerDialogOpen(true)
   }, [])
 
   const handleEditEntry = useCallback((uuid: string, entry: DatabaseEntry) => {
     setErrorMessage(null)
     setSuccessMessage(null)
     setEntryDialog({ entry, mode: "edit", uuid })
+  }, [])
+
+  const handleCreateEntryFromOwner = useCallback((uuid: string) => {
+    setErrorMessage(null)
+    setSuccessMessage(null)
+    setEntryDialog({ mode: "add", uuid })
   }, [])
 
   const handleSaveEntry = useCallback(async (uuid: string, entry: DatabaseEntry) => {
@@ -367,21 +457,81 @@ export function DatabaseAdminPage() {
     [ authToken, clearSession ]
   )
 
+  const handleSaveOwner = useCallback(async (payload: DatabaseOwnerPayload) => {
+    setIsSavingOwner(true)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+
+    try {
+      const owner = {
+        hasName: payload.hasName,
+        hasSize: payload.hasSize
+      }
+
+      await NoammApi.saveOwner(payload.uuid, authToken, owner)
+
+      setOwners((currentOwners) => ({ ...currentOwners, [payload.uuid]: owner }))
+      setIsOwnerDialogOpen(false)
+      setErrorMessage(null)
+      setSuccessMessage("Owner saved.")
+      return null
+    }
+    catch (error) {
+      if (error instanceof NoammApiError && error.status === 401) {
+        const message = getErrorMessage(error)
+        clearSession()
+        setErrorMessage(message)
+        return null
+      }
+
+      const message = getErrorMessage(error)
+      setErrorMessage(message)
+      return message
+    }
+    finally {
+      setIsSavingOwner(false)
+    }
+  }, [ authToken, clearSession ])
+
   const handleDeleteEntry = useCallback((uuid: string) => {
     const entry = entries[uuid]
     if (! entry) return setErrorMessage("This database entry was not found.")
 
     setErrorMessage(null)
     setSuccessMessage(null)
+    setDeleteConfirmStep(0)
     setDeleteDialog({ entry, uuid })
   }, [ entries ])
 
+  const handleDeleteOwner = useCallback((uuid: string) => {
+    const owner = owners[uuid]
+    if (! owner) return setErrorMessage("This owner entry was not found.")
+
+    setErrorMessage(null)
+    setSuccessMessage(null)
+    setOwnerDeleteConfirmStep(0)
+    setOwnerDeleteDialog({ owner, uuid })
+  }, [ owners ])
+
   const handleCloseDeleteDialog = useCallback(() => {
-    if (! deletingUuid) setDeleteDialog(null)
+    if (deletingUuid) return
+    setDeleteDialog(null)
+    setDeleteConfirmStep(0)
   }, [ deletingUuid ])
+
+  const handleCloseOwnerDeleteDialog = useCallback(() => {
+    if (deletingOwnerUuid) return
+    setOwnerDeleteDialog(null)
+    setOwnerDeleteConfirmStep(0)
+  }, [ deletingOwnerUuid ])
 
   const handleConfirmDeleteEntry = useCallback(async () => {
     if (! deleteDialog) return
+    if (deleteConfirmStep < DELETE_CONFIRM_LABELS.length - 1) {
+      setDeleteConfirmStep((currentStep) => currentStep + 1)
+      return
+    }
+
     const { uuid } = deleteDialog
 
     setDeletingUuid(uuid)
@@ -397,6 +547,7 @@ export function DatabaseAdminPage() {
         return nextEntries
       })
       setDeleteDialog(null)
+      setDeleteConfirmStep(0)
       setErrorMessage(null)
       setSuccessMessage("Entry deleted.")
     }
@@ -407,7 +558,42 @@ export function DatabaseAdminPage() {
     finally {
       setDeletingUuid(null)
     }
-  }, [ authToken, clearSession, deleteDialog ])
+  }, [ authToken, clearSession, deleteConfirmStep, deleteDialog ])
+
+  const handleConfirmDeleteOwner = useCallback(async () => {
+    if (! ownerDeleteDialog) return
+    if (ownerDeleteConfirmStep < DELETE_CONFIRM_LABELS.length - 1) {
+      setOwnerDeleteConfirmStep((currentStep) => currentStep + 1)
+      return
+    }
+
+    const { uuid } = ownerDeleteDialog
+
+    setDeletingOwnerUuid(uuid)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+
+    try {
+      await NoammApi.deleteOwner(uuid, authToken)
+
+      setOwners((currentOwners) => {
+        const nextOwners = { ...currentOwners }
+        delete nextOwners[uuid]
+        return nextOwners
+      })
+      setOwnerDeleteDialog(null)
+      setOwnerDeleteConfirmStep(0)
+      setErrorMessage(null)
+      setSuccessMessage("Owner deleted.")
+    }
+    catch (error) {
+      if (error instanceof NoammApiError && error.status === 401) clearSession()
+      setErrorMessage(getErrorMessage(error))
+    }
+    finally {
+      setDeletingOwnerUuid(null)
+    }
+  }, [ authToken, clearSession, ownerDeleteConfirmStep, ownerDeleteDialog ])
 
   const deleteEntryName = deleteDialog ? getPlainMinecraftText(deleteDialog.entry.getName() ?? "").trim() : ""
 
@@ -532,10 +718,10 @@ export function DatabaseAdminPage() {
             <ActionButton
               className="h-[46px] min-h-[46px] shrink-0"
               icon={ <Plus className="h-4 w-4" aria-hidden="true"/> }
-              onClick={ handleAddEntry }
+              onClick={ handleOpenAddChoice }
               variant="primary"
             >
-              Add Entry
+              Add
             </ActionButton>
           </div>
 
@@ -544,7 +730,7 @@ export function DatabaseAdminPage() {
               <div className="rounded-2xl border border-white/10 bg-black/15 py-16 text-center text-sm font-semibold text-white/45">
                 Loading database...
               </div>
-            ) : filteredEntries.length > 0 ? (
+            ) : filteredEntries.length > 0 || filteredOwnerOnlyItems.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
                 { filteredEntries.map((item) => (
                   <DatabaseEntryRow
@@ -553,6 +739,16 @@ export function DatabaseAdminPage() {
                     key={ item.uuid }
                     onDelete={ handleDeleteEntry }
                     onEdit={ handleEditEntry }
+                    uuid={ item.uuid }
+                  />
+                )) }
+                { filteredOwnerOnlyItems.map((item) => (
+                  <DatabaseOwnerOnlyRow
+                    isDeleting={ deletingOwnerUuid === item.uuid }
+                    key={ `owner-${ item.uuid }` }
+                    onDelete={ handleDeleteOwner }
+                    onEditEntry={ handleCreateEntryFromOwner }
+                    owner={ item.owner }
                     uuid={ item.uuid }
                   />
                 )) }
@@ -574,19 +770,35 @@ export function DatabaseAdminPage() {
         </section>
       </div>
 
+      { isAddChoiceOpen ? (
+        <DatabaseAddChoiceModal
+          onClose={ () => setIsAddChoiceOpen(false) }
+          onSelectEntry={ handleSelectEntryAdd }
+          onSelectOwner={ handleSelectOwnerAdd }
+        />
+      ) : null }
+
       { entryDialog ? (
         <DatabaseEntryModal
           initialEntry={
             entryDialog.mode === "edit" ? entryDialog.entry : undefined
           }
           initialUuid={
-            entryDialog.mode === "edit" ? entryDialog.uuid : undefined
+            entryDialog.uuid
           }
           isSaving={ isSavingEntry }
-          key={ entryDialog.mode === "edit" ? entryDialog.uuid : "add-entry" }
+          key={ entryDialog.mode === "edit" ? entryDialog.uuid : `add-entry-${ entryDialog.uuid ?? "new" }` }
           mode={ entryDialog.mode }
           onClose={ () => setEntryDialog(null) }
           onSubmit={ handleSaveEntry }
+        />
+      ) : null }
+
+      { isOwnerDialogOpen ? (
+        <DatabaseOwnerModal
+          isSaving={ isSavingOwner }
+          onClose={ () => setIsOwnerDialogOpen(false) }
+          onSubmit={ handleSaveOwner }
         />
       ) : null }
 
@@ -658,7 +870,93 @@ export function DatabaseAdminPage() {
                 onClick={ handleConfirmDeleteEntry }
                 variant="danger"
               >
-                { deletingUuid ? "Deleting..." : "Delete" }
+                { deletingUuid ? "Deleting..." : DELETE_CONFIRM_LABELS[deleteConfirmStep] }
+              </ActionButton>
+            </div>
+          </section>
+        </div>
+      ) : null }
+
+      { ownerDeleteDialog ? (
+        <div
+          aria-labelledby="delete-owner-modal-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50 grid place-items-center px-4 py-5"
+          role="dialog"
+        >
+          <button
+            aria-label="Close owner delete confirmation"
+            className="absolute inset-0 h-full w-full bg-black/60 backdrop-blur-sm"
+            disabled={ Boolean(deletingOwnerUuid) }
+            onClick={ handleCloseOwnerDeleteDialog }
+            type="button"
+          />
+
+          <section className="glass-card animate-panel-in relative z-10 w-full max-w-[460px] p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-red-400/25 bg-red-500/10 text-red-100">
+                  <Trash2 className="h-5 w-5" aria-hidden="true"/>
+                </div>
+                <div>
+                  <h2
+                    className="text-xl font-extrabold text-white"
+                    id="delete-owner-modal-title"
+                  >
+                    Delete owner
+                  </h2>
+                  <p className="mt-1 text-sm font-semibold text-white/42">
+                    This only deletes owner permissions.
+                  </p>
+                </div>
+              </div>
+
+              <ActionButton
+                aria-label="Close"
+                className="h-10 min-h-10 w-10 px-0 py-0"
+                disabled={ Boolean(deletingOwnerUuid) }
+                icon={ <X className="h-4 w-4" aria-hidden="true"/> }
+                onClick={ handleCloseOwnerDeleteDialog }
+                variant="ghost"
+              />
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-white/10 bg-black/15 p-4">
+              <p className="break-all font-mono text-xs text-white/45">
+                { ownerDeleteDialog.uuid }
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className={ `inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                  ownerDeleteDialog.owner.hasName
+                    ? "border-cyan-300/20 bg-cyan-300/[0.075] text-cyan-100/85"
+                    : "border-white/10 bg-white/[0.035] text-white/34"
+                }` }>
+                  hasName
+                </span>
+                <span className={ `inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                  ownerDeleteDialog.owner.hasSize
+                    ? "border-cyan-300/20 bg-cyan-300/[0.075] text-cyan-100/85"
+                    : "border-white/10 bg-white/[0.035] text-white/34"
+                }` }>
+                  hasSize
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              <ActionButton
+                disabled={ Boolean(deletingOwnerUuid) }
+                onClick={ handleCloseOwnerDeleteDialog }
+              >
+                Cancel
+              </ActionButton>
+              <ActionButton
+                disabled={ Boolean(deletingOwnerUuid) }
+                icon={ <Trash2 className="h-4 w-4" aria-hidden="true"/> }
+                onClick={ handleConfirmDeleteOwner }
+                variant="danger"
+              >
+                { deletingOwnerUuid ? "Deleting..." : DELETE_CONFIRM_LABELS[ownerDeleteConfirmStep] }
               </ActionButton>
             </div>
           </section>
