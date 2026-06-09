@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { RotateCcw, Type, UserRound } from "lucide-react"
 import { ActionButton } from "../components/ActionButton"
 import { MinecraftSkinViewer } from "../components/MinecraftSkinViewer"
@@ -14,6 +14,7 @@ type ScaleAxis = typeof SCALE_AXES[number]
 type ScaleInputState = Record<ScaleAxis, string>
 
 const PREVIEW_USERNAME = "Noamm"
+const DEBOUNCE_DELAY_MS = 500
 
 const isMinecraftUsername = (value: string) => /^[a-zA-Z0-9_]{3,16}$/.test(value.trim())
 const formatScaleInput = (value: number | null | undefined) => typeof value === "number" && Number.isFinite(value) ? String(value) : "1"
@@ -53,11 +54,17 @@ const getScaleSliderValue = (value: string, fallback: number) => {
 
 export function PreviewPage() {
   const [ minecraftUsername, setMinecraftUsername ] = useState(PREVIEW_USERNAME)
+  const [ debouncedUsername, setDebouncedUsername ] = useState(PREVIEW_USERNAME)
   const [ customName, setCustomName ] = useState("")
   const [ scaleInput, setScaleInput ] = useState<ScaleInputState>(() => scaleToScaleInput(DEFAULT_SCALE))
 
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedUsername(minecraftUsername), DEBOUNCE_DELAY_MS)
+    return () => clearTimeout(handler)
+  }, [ minecraftUsername ])
+
   const parsedScale = useMemo(() => parseScaleInputState(scaleInput), [ scaleInput ])
-  const requestedUsername = minecraftUsername.trim() || PREVIEW_USERNAME
+  const requestedUsername = debouncedUsername.trim() || PREVIEW_USERNAME
   const previewUsername = isMinecraftUsername(requestedUsername) ? requestedUsername : PREVIEW_USERNAME
   const previewScale = parsedScale.error === null ? parsedScale.value : DEFAULT_SCALE
   const nameTag = customName.trim() || previewUsername
@@ -107,7 +114,7 @@ export function PreviewPage() {
                 <p className="mb-2 mt-2 flex items-center gap-1.5 text-xs font-semibold text-white/42">
                   <span aria-hidden="true">ⓘ</span>
                   <span>
-                    To format a custom name, use{" "}
+                    To format a custom name, use{ " " }
                     <a
                       className="text-cyan-200/85 transition hover:text-cyan-100"
                       href={ birdFlopRgbUrl }
@@ -190,7 +197,14 @@ export function PreviewPage() {
                 Loading skin...
               </div>
             }>
-              <MinecraftSkinViewer height={ 400 } nameTag={ nameTag } scale={ previewScale } skinUrl={ skinUrl } width={ 300 }/>
+              <MinecraftSkinViewer
+                key={ skinUrl }
+                height={ 400 }
+                nameTag={ nameTag }
+                scale={ previewScale }
+                skinUrl={ skinUrl }
+                width={ 300 }
+              />
             </Suspense>
           </aside>
         </div>
