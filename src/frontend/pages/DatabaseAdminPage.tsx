@@ -18,8 +18,8 @@ import { getErrorMessage } from '../utils.ts'
 import NoammApi, { NoammApiError } from '../lib/NoammApi.ts'
 
 type EntryDialogState = | { mode: "add", uuid?: string } | { entry: DatabaseEntry, mode: "edit", uuid: string }
-type DeleteDialogState = { entry: DatabaseEntry, uuid: string }
 type OwnerDeleteDialogState = { owner: DatabaseOwner, uuid: string }
+type OwnerDialogState = { owner?: DatabaseOwner, uuid?: string, uuidReadOnly?: boolean }
 type EntryFilter = "all" | "named" | "scaled"
 
 type MinecraftLookupState =
@@ -38,6 +38,8 @@ const DELETE_CONFIRM_LABELS = [
   "Are you reallyyyy sure?",
   "Are you really really sure?"
 ] as const
+
+const DEFAULT_OWNER: DatabaseOwner = { hasName: false, hasSize: false }
 
 interface DatabaseMenuContentProps {
   isLoading: boolean
@@ -114,13 +116,11 @@ export function DatabaseAdminPage() {
   const [ isSavingOwner, setIsSavingOwner ] = useState(false)
   const [ deletingUuid, setDeletingUuid ] = useState<string | null>(null)
   const [ deletingOwnerUuid, setDeletingOwnerUuid ] = useState<string | null>(null)
-  const [ deleteConfirmStep, setDeleteConfirmStep ] = useState(0)
   const [ ownerDeleteConfirmStep, setOwnerDeleteConfirmStep ] = useState(0)
   const [ isAddChoiceOpen, setIsAddChoiceOpen ] = useState(false)
-  const [ deleteDialog, setDeleteDialog ] = useState<DeleteDialogState | null>(null)
   const [ ownerDeleteDialog, setOwnerDeleteDialog ] = useState<OwnerDeleteDialogState | null>(null)
   const [ entryDialog, setEntryDialog ] = useState<EntryDialogState | null>(null)
-  const [ isOwnerDialogOpen, setIsOwnerDialogOpen ] = useState(false)
+  const [ ownerDialog, setOwnerDialog ] = useState<OwnerDialogState | null>(null)
   const [ isFilterMenuOpen, setIsFilterMenuOpen ] = useState(false)
   const [ isMobileMenuOpen, setIsMobileMenuOpen ] = useState(false)
   const [ minecraftLookup, setMinecraftLookup ] = useState<MinecraftLookupState | null>(null)
@@ -138,10 +138,8 @@ export function DatabaseAdminPage() {
     setOwners({})
     setIsAddChoiceOpen(false)
     setEntryDialog(null)
-    setIsOwnerDialogOpen(false)
-    setDeleteDialog(null)
+    setOwnerDialog(null)
     setOwnerDeleteDialog(null)
-    setDeleteConfirmStep(0)
     setOwnerDeleteConfirmStep(0)
   }, [])
 
@@ -213,28 +211,6 @@ export function DatabaseAdminPage() {
       window.removeEventListener("keydown", handleKeyDown)
     }
   }, [ isFilterMenuOpen ])
-
-  useEffect(() => {
-    if (! deleteDialog) return
-
-    const originalBodyOverflow = document.body.style.overflow
-    const originalHtmlOverflow = document.documentElement.style.overflow
-
-    document.body.style.overflow = "hidden"
-    document.documentElement.style.overflow = "hidden"
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && ! deletingUuid) setDeleteDialog(null)
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-
-    return () => {
-      document.body.style.overflow = originalBodyOverflow
-      document.documentElement.style.overflow = originalHtmlOverflow
-      window.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [ deleteDialog, deletingUuid ])
 
   useEffect(() => {
     if (! ownerDeleteDialog) return
@@ -409,7 +385,7 @@ export function DatabaseAdminPage() {
 
   const handleSelectOwnerAdd = useCallback(() => {
     setIsAddChoiceOpen(false)
-    setIsOwnerDialogOpen(true)
+    setOwnerDialog({})
   }, [])
 
   const handleEditEntry = useCallback((uuid: string, entry: DatabaseEntry) => {
@@ -471,7 +447,7 @@ export function DatabaseAdminPage() {
       await NoammApi.saveOwner(payload.uuid, authToken, owner)
 
       setOwners((currentOwners) => ({ ...currentOwners, [payload.uuid]: owner }))
-      setIsOwnerDialogOpen(false)
+      setOwnerDialog(null)
       setErrorMessage(null)
       setSuccessMessage("Owner saved.")
       return null
@@ -493,47 +469,37 @@ export function DatabaseAdminPage() {
     }
   }, [ authToken, clearSession ])
 
-  const handleDeleteEntry = useCallback((uuid: string) => {
-    const entry = entries[uuid]
-    if (! entry) return setErrorMessage("This database entry was not found.")
-
+  const handleSaveEntryOwnerSettings = useCallback(async (uuid: string, owner: DatabaseOwner) => {
+    setIsSavingOwner(true)
     setErrorMessage(null)
     setSuccessMessage(null)
-    setDeleteConfirmStep(0)
-    setDeleteDialog({ entry, uuid })
-  }, [ entries ])
 
-  const handleDeleteOwner = useCallback((uuid: string) => {
-    const owner = owners[uuid]
-    if (! owner) return setErrorMessage("This owner entry was not found.")
+    try {
+      await NoammApi.saveOwner(uuid, authToken, owner)
 
-    setErrorMessage(null)
-    setSuccessMessage(null)
-    setOwnerDeleteConfirmStep(0)
-    setOwnerDeleteDialog({ owner, uuid })
-  }, [ owners ])
-
-  const handleCloseDeleteDialog = useCallback(() => {
-    if (deletingUuid) return
-    setDeleteDialog(null)
-    setDeleteConfirmStep(0)
-  }, [ deletingUuid ])
-
-  const handleCloseOwnerDeleteDialog = useCallback(() => {
-    if (deletingOwnerUuid) return
-    setOwnerDeleteDialog(null)
-    setOwnerDeleteConfirmStep(0)
-  }, [ deletingOwnerUuid ])
-
-  const handleConfirmDeleteEntry = useCallback(async () => {
-    if (! deleteDialog) return
-    if (deleteConfirmStep < DELETE_CONFIRM_LABELS.length - 1) {
-      setDeleteConfirmStep((currentStep) => currentStep + 1)
-      return
+      setOwners((currentOwners) => ({ ...currentOwners, [uuid]: owner }))
+      setErrorMessage(null)
+      setSuccessMessage("Owner saved.")
+      return null
     }
+    catch (error) {
+      if (error instanceof NoammApiError && error.status === 401) {
+        const message = getErrorMessage(error)
+        clearSession()
+        setErrorMessage(message)
+        return null
+      }
 
-    const { uuid } = deleteDialog
+      const message = getErrorMessage(error)
+      setErrorMessage(message)
+      return message
+    }
+    finally {
+      setIsSavingOwner(false)
+    }
+  }, [ authToken, clearSession ])
 
+  const handleDeleteEntryFromSettings = useCallback(async (uuid: string) => {
     setDeletingUuid(uuid)
     setErrorMessage(null)
     setSuccessMessage(null)
@@ -546,19 +512,42 @@ export function DatabaseAdminPage() {
         delete nextEntries[uuid]
         return nextEntries
       })
-      setDeleteDialog(null)
-      setDeleteConfirmStep(0)
       setErrorMessage(null)
       setSuccessMessage("Entry deleted.")
+      return null
     }
     catch (error) {
-      if (error instanceof NoammApiError && error.status === 401) clearSession()
-      setErrorMessage(getErrorMessage(error))
+      if (error instanceof NoammApiError && error.status === 401) {
+        const message = getErrorMessage(error)
+        clearSession()
+        setErrorMessage(message)
+        return null
+      }
+
+      const message = getErrorMessage(error)
+      setErrorMessage(message)
+      return message
     }
     finally {
       setDeletingUuid(null)
     }
-  }, [ authToken, clearSession, deleteConfirmStep, deleteDialog ])
+  }, [ authToken, clearSession ])
+
+  const handleDeleteOwner = useCallback((uuid: string) => {
+    const owner = owners[uuid]
+    if (! owner) return setErrorMessage("This owner entry was not found.")
+
+    setErrorMessage(null)
+    setSuccessMessage(null)
+    setOwnerDeleteConfirmStep(0)
+    setOwnerDeleteDialog({ owner, uuid })
+  }, [ owners ])
+
+  const handleCloseOwnerDeleteDialog = useCallback(() => {
+    if (deletingOwnerUuid) return
+    setOwnerDeleteDialog(null)
+    setOwnerDeleteConfirmStep(0)
+  }, [ deletingOwnerUuid ])
 
   const handleConfirmDeleteOwner = useCallback(async () => {
     if (! ownerDeleteDialog) return
@@ -594,8 +583,6 @@ export function DatabaseAdminPage() {
       setDeletingOwnerUuid(null)
     }
   }, [ authToken, clearSession, ownerDeleteConfirmStep, ownerDeleteDialog ])
-
-  const deleteEntryName = deleteDialog ? getPlainMinecraftText(deleteDialog.entry.getName() ?? "").trim() : ""
 
   if (! authToken) return (
     <main className="relative grid min-h-screen place-items-center px-5 py-8">
@@ -735,10 +722,13 @@ export function DatabaseAdminPage() {
                 { filteredEntries.map((item) => (
                   <DatabaseEntryRow
                     entry={ item.entry }
-                    isDeleting={ deletingUuid === item.uuid }
+                    isDeletingEntry={ deletingUuid === item.uuid }
+                    isSavingOwner={ isSavingOwner }
                     key={ item.uuid }
-                    onDelete={ handleDeleteEntry }
+                    onDeleteEntry={ handleDeleteEntryFromSettings }
                     onEdit={ handleEditEntry }
+                    onSaveOwner={ handleSaveEntryOwnerSettings }
+                    owner={ owners[item.uuid] ?? DEFAULT_OWNER }
                     uuid={ item.uuid }
                   />
                 )) }
@@ -794,87 +784,16 @@ export function DatabaseAdminPage() {
         />
       ) : null }
 
-      { isOwnerDialogOpen ? (
+      { ownerDialog ? (
         <DatabaseOwnerModal
+          initialOwner={ ownerDialog.owner }
+          initialUuid={ ownerDialog.uuid }
           isSaving={ isSavingOwner }
-          onClose={ () => setIsOwnerDialogOpen(false) }
+          key={ ownerDialog.uuid ?? "new-owner" }
+          onClose={ () => setOwnerDialog(null) }
           onSubmit={ handleSaveOwner }
+          uuidReadOnly={ ownerDialog.uuidReadOnly }
         />
-      ) : null }
-
-      { deleteDialog ? (
-        <div
-          aria-labelledby="delete-entry-modal-title"
-          aria-modal="true"
-          className="fixed inset-0 z-50 grid place-items-center px-4 py-5"
-          role="dialog"
-        >
-          <button
-            aria-label="Close delete confirmation"
-            className="absolute inset-0 h-full w-full bg-black/60 backdrop-blur-sm"
-            disabled={ Boolean(deletingUuid) }
-            onClick={ handleCloseDeleteDialog }
-            type="button"
-          />
-
-          <section className="glass-card animate-panel-in relative z-10 w-full max-w-[460px] p-5 sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-red-400/25 bg-red-500/10 text-red-100">
-                  <Trash2 className="h-5 w-5" aria-hidden="true"/>
-                </div>
-                <div>
-                  <h2
-                    className="text-xl font-extrabold text-white"
-                    id="delete-entry-modal-title"
-                  >
-                    Delete entry
-                  </h2>
-                  <p className="mt-1 text-sm font-semibold text-white/42">
-                    This action cannot be undone.
-                  </p>
-                </div>
-              </div>
-
-              <ActionButton
-                aria-label="Close"
-                className="h-10 min-h-10 w-10 px-0 py-0"
-                disabled={ Boolean(deletingUuid) }
-                icon={ <X className="h-4 w-4" aria-hidden="true"/> }
-                onClick={ handleCloseDeleteDialog }
-                variant="ghost"
-              />
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-white/10 bg-black/15 p-4">
-              <p className="break-all font-mono text-xs text-white/45">
-                { deleteDialog.uuid }
-              </p>
-              { deleteEntryName ? (
-                <p className="mt-2 truncate text-sm font-semibold text-white/78">
-                  { deleteEntryName }
-                </p>
-              ) : null }
-            </div>
-
-            <div className="mt-5 grid gap-2 sm:grid-cols-2">
-              <ActionButton
-                disabled={ Boolean(deletingUuid) }
-                onClick={ handleCloseDeleteDialog }
-              >
-                Cancel
-              </ActionButton>
-              <ActionButton
-                disabled={ Boolean(deletingUuid) }
-                icon={ <Trash2 className="h-4 w-4" aria-hidden="true"/> }
-                onClick={ handleConfirmDeleteEntry }
-                variant="danger"
-              >
-                { deletingUuid ? "Deleting..." : DELETE_CONFIRM_LABELS[deleteConfirmStep] }
-              </ActionButton>
-            </div>
-          </section>
-        </div>
       ) : null }
 
       { ownerDeleteDialog ? (

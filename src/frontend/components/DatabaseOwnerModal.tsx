@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react"
 import { Hash, Save, ShieldCheck, X } from "lucide-react"
 import { DEFAULT_SCALE } from "../content/database"
+import type { DatabaseOwner } from "../types/DatabaseEntry"
 import { ActionButton } from "./ActionButton"
 import { MinecraftSkinViewer } from "./MinecraftSkinViewer"
 import { StatusBanner } from "./StatusBanner"
@@ -13,15 +14,18 @@ export interface DatabaseOwnerPayload {
 }
 
 interface DatabaseOwnerModalProps {
+  initialOwner?: DatabaseOwner
+  initialUuid?: string
   isSaving: boolean
   onClose: () => void
   onSubmit: (payload: DatabaseOwnerPayload) => Promise<string | null>
+  uuidReadOnly?: boolean
 }
 
-export function DatabaseOwnerModal({ isSaving, onClose, onSubmit }: DatabaseOwnerModalProps) {
-  const [ uuid, setUuid ] = useState("")
-  const [ hasName, setHasName ] = useState(false)
-  const [ hasSize, setHasSize ] = useState(false)
+export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, onClose, onSubmit, uuidReadOnly = false }: DatabaseOwnerModalProps) {
+  const [ uuid, setUuid ] = useState(initialUuid)
+  const [ hasName, setHasName ] = useState(initialOwner?.hasName ?? false)
+  const [ hasSize, setHasSize ] = useState(initialOwner?.hasSize ?? false)
   const [ formError, setFormError ] = useState<string | null>(null)
 
   const normalizedUuid = uuid.trim()
@@ -110,10 +114,12 @@ export function DatabaseOwnerModal({ isSaving, onClose, onSubmit }: DatabaseOwne
             <div className="grid gap-5">
               <TextField
                 autoComplete="off"
+                className={ uuidReadOnly ? "cursor-not-allowed text-white/55" : "" }
                 icon={ <Hash className="h-3.5 w-3.5" aria-hidden="true"/> }
                 label="Minecraft Player UUID"
                 onChange={ (event) => setUuid(event.target.value) }
                 placeholder="7ab34814-ef33-4745-9af3-dd3fde6c57cd"
+                readOnly={ uuidReadOnly }
                 value={ uuid }
               />
 
