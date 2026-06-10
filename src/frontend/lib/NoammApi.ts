@@ -67,9 +67,15 @@ class NoammApi {
     const session = AuthSession.read()
     if (! session) return { authenticated: false } satisfies MeResponse
 
-    const data = await this.request("/database/web/get", {
-      method: "GET", headers: { "Auth-Token": session.apiKey }
-    })
+    let data: DatabaseEntry
+    try {
+      data = await this.request("/database/web/get", {
+        method: "GET", headers: { "Auth-Token": session.apiKey }
+      })
+    }
+    catch (e) {
+      data = new DatabaseEntry()
+    }
 
     const databaseEntry = DatabaseEntry.fromUnknown(data)
 
@@ -140,13 +146,13 @@ class NoammApi {
   }
 
   async deleteOwner(uuid: string, authToken: string) {
-    await this.requestVoid(`/database/admin/owner/${ encodeURIComponent(uuid) }`, {
+    await this.requestText(`/database/admin/owner/${ encodeURIComponent(uuid) }`, {
       method: "DELETE", headers: { "Authorization": authToken }
     })
   }
 
   async deleteEntry(uuid: string, authToken: string) {
-    await this.requestVoid(`/database/admin/entry/${ encodeURIComponent(uuid) }`, {
+    await this.requestText(`/database/admin/entry/${ encodeURIComponent(uuid) }`, {
       method: "DELETE", headers: { "Authorization": authToken }
     })
   }
@@ -160,10 +166,6 @@ class NoammApi {
     catch (error) {
       throw new NoammApiError(0, "The API response is invalid.", text)
     }
-  }
-
-  private async requestVoid(path: string, init: RequestInit) {
-    await this.requestText(path, init)
   }
 
   private async requestText(path: string, init: RequestInit) {

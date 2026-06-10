@@ -14,7 +14,6 @@ export interface SliderConfig {
 
 export interface ProfilePlayer {
   aliases: string[]
-  canEditScale?: boolean
   displayName: string | null
   scale: Scale | null
   username: string | null
