@@ -2,7 +2,7 @@ import AuthSession from "./AuthSession"
 import { dashedUUID } from "./minecraft-profile"
 import type { MeResponse, ProfilePlayer } from "../types/profile"
 import { isJsonRecord } from '../utils.ts'
-import DatabaseEntry, { databaseOwnerFromUnknown, databaseOwnersFromUnknown, type DatabaseData, type DatabaseOwner } from '../types/DatabaseEntry.ts'
+import DatabaseEntry, { type DatabaseData, type DatabaseOwner, databaseOwnerFromUnknown, databaseOwnersFromUnknown } from '../types/DatabaseEntry.ts'
 
 type McIdVerifyResponse = | { authenticated: false } | { authenticated: true, authorized: false, error: string } | {
   apiKey: string
@@ -118,7 +118,7 @@ class NoammApi {
   }
 
   async saveEntry(uuid: string, authToken: string, entry: DatabaseEntry) {
-    await this.requestText(`/database/admin/${ encodeURIComponent(uuid) }`, {
+    await this.requestText(`/database/admin/entry/${ encodeURIComponent(uuid) }`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -146,7 +146,7 @@ class NoammApi {
   }
 
   async deleteEntry(uuid: string, authToken: string) {
-    await this.requestVoid(`/database/admin/${ encodeURIComponent(uuid) }`, {
+    await this.requestVoid(`/database/admin/entry/${ encodeURIComponent(uuid) }`, {
       method: "DELETE", headers: { "Authorization": authToken }
     })
   }
@@ -157,7 +157,6 @@ class NoammApi {
     try {
       return JSON.parse(text) as T
     }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     catch (error) {
       throw new NoammApiError(0, "The API response is invalid.", text)
     }
