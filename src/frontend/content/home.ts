@@ -58,6 +58,11 @@ export const HOME_ACTIONS: Record<HomeTab, HomeAction[]> = {
       target: "_blank"
     },
     {
+      href: "https://codeberg.org/MicrocontrollersDev/Better-Screens",
+      label: "BetterScreens",
+      target: "_blank"
+    },
+    {
       href: "https://github.com/Noamm9/NVGRenderer",
       label: "NVGRenderer",
       target: "_blank"
