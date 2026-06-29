@@ -41,8 +41,8 @@ export const HOME_ACTIONS: Record<HomeTab, HomeAction[]> = {
       target: "_blank"
     },
     {
-      href: "https://www.paypal.com/paypalme/aziz6540",
-      label: "PayPal",
+      href: "https://ko-fi.com/noamm",
+      label: "Ko-Fi",
       target: "_blank"
     }
   ],
@@ -70,6 +70,10 @@ export const HOME_ACTIONS: Record<HomeTab, HomeAction[]> = {
   ],
   extras: [
     {
+      label: "NoammAddons Cosmetic Editor",
+      href: "/login"
+    },
+    {
       href: "https://www.youtube.com/@PanddaBoyy",
       label: "YouTube Channel",
       target: "_blank"
@@ -78,10 +82,6 @@ export const HOME_ACTIONS: Record<HomeTab, HomeAction[]> = {
       href: "https://steamcommunity.com/id/207979311",
       label: "Steam Profile",
       target: "_blank"
-    },
-    {
-      label: "NoammAddons Cosmetic Editor",
-      href: "/login"
     }
   ]
 }
