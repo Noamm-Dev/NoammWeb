@@ -7,17 +7,9 @@ class MinecraftApi {
   private readonly cache = new Map<string, MinecraftProfile | null>()
   private readonly api = "https://playerdb.co/api/player/minecraft/"
 
-  normalizeUuid(value: string) {
-    return value.trim().replace(/-/g, "").toLowerCase()
-  }
-
-  isMinecraftUuid(value: string) {
-    return /^[0-9a-f]{32}$/i.test(this.normalizeUuid(value))
-  }
-
-  isMinecraftUsername(value: string) {
-    return /^[a-zA-Z0-9_]{3,16}$/.test(value.trim())
-  }
+  normalizeUuid = (value: string) => value.trim().replace(/-/g, "").toLowerCase()
+  isMinecraftUuid = (value: string) => /^[0-9a-f]{32}$/i.test(this.normalizeUuid(value))
+  isMinecraftUsername = (value: string) => /^[a-zA-Z0-9_]{3,16}$/.test(value.trim())
 
   dashedUUID(raw: string) {
     const uuid = this.normalizeUuid(raw)
