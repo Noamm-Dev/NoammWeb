@@ -131,6 +131,24 @@ export function DatabaseAdminPage() {
   const filterMenuRef = useRef<HTMLDivElement | null>(null)
   const normalizedSearchTerm = deferredSearchTerm.trim().toLowerCase()
 
+  useEffect(() => {
+    const searchInput = document.getElementById("database-search-input")
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault()
+        if (document.activeElement === searchInput) searchInput?.blur()
+        else searchInput?.focus()
+      }
+      else if (event.key === "Escape" && document.activeElement === searchInput) {
+        searchInput?.blur()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
   const clearSession = useCallback(() => {
     window.localStorage.removeItem(STORAGE_KEY)
     setAuthToken("")
@@ -645,6 +663,7 @@ export function DatabaseAdminPage() {
           <div className="flex w-full flex-col gap-3 md:flex-row md:items-end">
             <div className="min-w-0 flex-1">
               <TextField
+                id="database-search-input"
                 icon={ <Search className="h-3.5 w-3.5" aria-hidden="true"/> }
                 label="Search"
                 onChange={ (event) => setSearchTerm(event.target.value) }
