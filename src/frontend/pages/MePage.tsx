@@ -169,6 +169,8 @@ export function MePage() {
   const customName = databaseEntry.getName().trim() || null
   const previewScale = parsedScale.error === null ? parsedScale.value : (player?.scale ?? null)
   const nameTag = player ? (customName ?? player.displayName ?? player.username ?? player.uuid) : ""
+  const canEditName = player?.hasName !== false
+  const canEditSize = player?.hasSize !== false
   const serverBacked = sessionSource === "server"
   const hasDisplayNameChanged = player !== null && customName !== player.displayName
   const hasScaleChanged = player !== null && parsedScale.error === null && ! scalesEqual(parsedScale.value, player.scale)
@@ -192,6 +194,18 @@ export function MePage() {
     }
 
     if (! hasChanges) return
+
+    if (! canEditName && hasDisplayNameChanged) {
+      setErrorMessage("You do not have permission to edit your custom name.")
+      setSuccessMessage(null)
+      return
+    }
+
+    if (! canEditSize && hasScaleChanged) {
+      setErrorMessage("You do not have permission to edit your size.")
+      setSuccessMessage(null)
+      return
+    }
 
     setIsSaving(true)
     setErrorMessage(null)
@@ -237,7 +251,6 @@ export function MePage() {
   const displayLabel = player.username ?? player.uuid
   const birdFlopRgbUrl = `https://www.birdflop.com/resources/rgb/?colors=%5B%7B%22hex%22%3A%22%233E9FD3%22%2C%22pos%22%3A100%7D%5D&text=${ encodeURIComponent(displayLabel) }&format=%7B%22color%22%3A%22JSON%22%7D`
 
-
   return (
     <main className="relative flex min-h-screen items-center justify-center px-4 py-5 sm:px-6 lg:px-8">
       <section className="glass-card mx-auto w-full max-w-6xl p-5 sm:p-7">
@@ -272,11 +285,24 @@ export function MePage() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
           <div className="min-w-0">
-            <form className="grid gap-5" onSubmit={ handleSubmit }>
+            { (! canEditName || ! canEditSize) && (
+              <div className="mb-6 rounded-2xl border border-yellow-500/20 bg-yellow-500/[0.08] p-4 text-sm font-semibold text-yellow-200">
+                You do not have permission to edit your { ! canEditName && ! canEditSize ? "custom name and size" : ! canEditName ? "custom name" : "size" }.
+              </div>
+            ) }
+            <form 
+              className="grid gap-5" 
+              onSubmit={ handleSubmit }
+              onKeyDown={ (e) => {
+                if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
+                  e.preventDefault()
+                }
+              } }
+            >
               <div className="max-w-[730px]">
                 <TextField
                   autoComplete="off"
-                  disabled={ isSaving }
+                  disabled={ isSaving || ! canEditName }
                   icon={ <Type className="h-3.5 w-3.5" aria-hidden="true"/> }
                   label="Custom Name (JSON Component)"
                   onChange={ event => setCustomName(event.target.value) }
@@ -286,7 +312,7 @@ export function MePage() {
                 <p className="mb-2 mt-2 flex items-center gap-1.5 text-xs font-semibold text-white/42">
                   <span aria-hidden="true">ⓘ</span>
                   <span>
-                    To format a custom name, use{" "}
+                    To format a custom name, use{ " " }
                     <a
                       className="text-cyan-200/85 transition hover:text-cyan-100"
                       href={ birdFlopRgbUrl }
@@ -323,7 +349,7 @@ export function MePage() {
                   <ActionButton
                     aria-label="Reset scale"
                     className="h-9 min-h-9 w-9 px-0 py-0"
-                    disabled={ isSaving }
+                    disabled={ isSaving || ! canEditSize }
                     icon={ <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/> }
                     onClick={ () => setCustomScales(player.scale ?? DEFAULT_SCALE) }
                     variant="ghost"
@@ -339,7 +365,7 @@ export function MePage() {
                         </label>
                         <input
                           className="h-10 w-20 rounded-xl border border-white/10 bg-white/[0.05] px-2 text-center text-sm font-semibold text-white outline-none transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={ isSaving }
+                          disabled={ isSaving || ! canEditSize }
                           id={ `scale-${ axis }` }
                           inputMode="decimal"
                           onChange={ (e) => setCustomScale(axis, e.target.value) }
@@ -350,7 +376,7 @@ export function MePage() {
                       <input
                         aria-label={ `Size ${ axis.toUpperCase() } slider` }
                         className="scale-slider mt-3"
-                        disabled={ isSaving }
+                        disabled={ isSaving || ! canEditSize }
                         max={ SLIDER_CONFIG.max }
                         min={ SLIDER_CONFIG.min }
                         onChange={ (e) => setCustomScale(axis, e.target.value) }
@@ -366,7 +392,7 @@ export function MePage() {
               <StatusBanner message={ parsedScale.error } tone="error"/>
 
               <ActionButton
-                disabled={ isSaving || ! serverBacked || ! hasChanges || parsedScale.error !== null }
+                disabled={ isSaving || ! serverBacked || ! hasChanges || parsedScale.error !== null || (! canEditName && ! canEditSize) }
                 icon={ <Save className="h-4 w-4" aria-hidden="true"/> }
                 type="submit"
                 variant="primary"

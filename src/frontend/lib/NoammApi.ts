@@ -25,7 +25,7 @@ export class NoammApiError extends Error {
 }
 
 class NoammApi {
-  readonly baseURL = "https://api.noamm.org"
+  readonly baseURL = "http://127.0.0.1:1111"
   readonly authConfig = { codeLength: 6, codeTTL: 300 }
 
   async requestMcIdCode(uuid: string) {
@@ -45,6 +45,8 @@ class NoammApi {
     const expiresIn = data.expiresIn as number
     const username = data.username as string
     const playerUuid = dashedUUID(data.userId as string)
+    const hasName = data.hasName as boolean
+    const hasSize = data.hasSize as boolean
 
     if (! apiKey || ! playerUuid) return { authenticated: false }
 
@@ -57,8 +59,10 @@ class NoammApi {
         aliases: username ? [ username ] : [],
         displayName: null,
         scale: null,
-        username,
-        uuid: playerUuid
+        username: username,
+        uuid: playerUuid,
+        hasName,
+        hasSize
       }
     }
   }

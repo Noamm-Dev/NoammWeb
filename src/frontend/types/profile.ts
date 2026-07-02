@@ -18,6 +18,8 @@ export interface ProfilePlayer {
   scale: Scale | null
   username: string | null
   uuid: string
+  hasName?: boolean
+  hasSize?: boolean
 }
 
 export interface AuthUser {
