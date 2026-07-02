@@ -9,7 +9,7 @@ import { DatabaseOwnerOnlyRow } from "../components/DatabaseOwnerOnlyRow"
 import { DatabaseOwnerModal, type DatabaseOwnerPayload } from "../components/DatabaseOwnerModal"
 import { SiteCredit } from "../components/SiteCredit"
 import { TextField } from "../components/TextField"
-import { isMinecraftUsername, lookupMinecraftUsername, type MinecraftProfileLookup, normalizeUuid } from "../lib/minecraft-profile"
+import MinecraftApi, { type MinecraftProfile } from "../lib/MinecraftApi"
 import { getPlainMinecraftText } from "../lib/minecraft-text"
 import NotificationManager from "../lib/NotificationManager"
 import DatabaseEntry, { type DatabaseOwner } from "../types/DatabaseEntry"
@@ -24,7 +24,7 @@ type EntryFilter = "all" | "named" | "scaled"
 
 type MinecraftLookupState =
   | { query: string; status: "loading" }
-  | { profile: MinecraftProfileLookup, query: string, status: "resolved" }
+  | { profile: MinecraftProfile, query: string, status: "resolved" }
   | { query: string, status: "not_found" }
   | { message: string, query: string; status: "error" }
 
@@ -253,13 +253,13 @@ export function DatabaseAdminPage() {
   }, [ ownerDeleteDialog, deletingOwnerUuid ])
 
   useEffect(() => {
-    if (! isMinecraftUsername(normalizedSearchTerm)) return
+    if (! MinecraftApi.isMinecraftUsername(normalizedSearchTerm)) return
 
     const abortController = new AbortController()
     const timeoutId = window.setTimeout(() => {
       setMinecraftLookup({ query: normalizedSearchTerm, status: "loading" })
 
-      void lookupMinecraftUsername(normalizedSearchTerm, abortController.signal).then((profile) => {
+      void MinecraftApi.getPlayer(normalizedSearchTerm, abortController.signal).then((profile) => {
         if (abortController.signal.aborted) return
         setMinecraftLookup(profile ? { profile, query: normalizedSearchTerm, status: "resolved" } : { query: normalizedSearchTerm, status: "not_found" })
       }).catch((error: unknown) => {
@@ -275,7 +275,7 @@ export function DatabaseAdminPage() {
   }, [ normalizedSearchTerm ])
 
   const activeMinecraftLookup = minecraftLookup?.query === normalizedSearchTerm ? minecraftLookup : null
-  const resolvedSearchUuid = activeMinecraftLookup?.status === "resolved" ? normalizeUuid(activeMinecraftLookup.profile.uuid) : null
+  const resolvedSearchUuid = activeMinecraftLookup?.status === "resolved" ? MinecraftApi.normalizeUuid(activeMinecraftLookup.profile.uuid) : null
 
   const sortedEntries = useMemo(() => Object.entries(entries), [ entries ])
   const sortedOwners = useMemo(() => Object.entries(owners), [ owners ])
@@ -287,7 +287,7 @@ export function DatabaseAdminPage() {
         entry,
         hasName: entry.hasCustomName(),
         hasScale: entry.hasCustomScale(),
-        normalizedUuid: normalizeUuid(uuid),
+        normalizedUuid: MinecraftApi.normalizeUuid(uuid),
         searchText: [ uuid, uuid.replaceAll("-", ""), entry.getName(), plainDisplayName ].join(" ").toLowerCase(),
         uuid
       }
@@ -298,7 +298,7 @@ export function DatabaseAdminPage() {
     return sortedOwners.filter(([ uuid ]) => ! entries[uuid]).map(([ uuid, owner ]) => ({
       hasName: owner.hasName,
       hasScale: owner.hasSize,
-      normalizedUuid: normalizeUuid(uuid),
+      normalizedUuid: MinecraftApi.normalizeUuid(uuid),
       owner,
       searchText: [ uuid, uuid.replaceAll("-", "") ].join(" ").toLowerCase(),
       uuid

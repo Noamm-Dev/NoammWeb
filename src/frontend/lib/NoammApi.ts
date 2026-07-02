@@ -1,5 +1,5 @@
 import AuthSession from "./AuthSession"
-import { dashedUUID } from "./minecraft-profile"
+import MinecraftApi from "./MinecraftApi"
 import type { MeResponse, ProfilePlayer } from "../types/profile"
 import { isJsonRecord } from '../utils.ts'
 import DatabaseEntry, { type DatabaseData, type DatabaseOwner, databaseOwnerFromUnknown, databaseOwnersFromUnknown } from '../types/DatabaseEntry.ts'
@@ -44,7 +44,7 @@ class NoammApi {
     const apiKey = data.token as string
     const expiresIn = data.expiresIn as number
     const username = data.username as string
-    const playerUuid = dashedUUID(data.userId as string)
+    const playerUuid = MinecraftApi.dashedUUID(data.userId as string)
     const hasName = data.hasName as boolean
     const hasSize = data.hasSize as boolean
 

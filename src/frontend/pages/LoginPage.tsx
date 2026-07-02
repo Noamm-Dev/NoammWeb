@@ -10,7 +10,7 @@ import AuthSession from "../lib/AuthSession"
 import NotificationManager from "../lib/NotificationManager"
 import noammApi from "../lib/NoammApi.ts"
 import NoammApi from "../lib/NoammApi.ts"
-import { dashedUUID, isMinecraftUsername, isMinecraftUuid, lookupMinecraftUsername } from "../lib/minecraft-profile"
+import MinecraftApi from "../lib/MinecraftApi"
 import type { ProfilePlayer } from "../types/profile"
 import { formatTime, getErrorMessage } from '../utils.ts'
 
@@ -29,14 +29,14 @@ function buildPlayer(uuid: string, username: string | null): ProfilePlayer {
 async function resolvePlayer(identifier: string) {
   const normalizedIdentifier = identifier.trim()
 
-  if (isMinecraftUuid(normalizedIdentifier)) {
-    const uuid = dashedUUID(normalizedIdentifier)
+  if (MinecraftApi.isMinecraftUuid(normalizedIdentifier)) {
+    const uuid = MinecraftApi.dashedUUID(normalizedIdentifier)
     if (! uuid) return null
     return buildPlayer(uuid, null)
   }
 
-  if (! isMinecraftUsername(normalizedIdentifier)) return null
-  const profile = await lookupMinecraftUsername(normalizedIdentifier)
+  if (! MinecraftApi.isMinecraftUsername(normalizedIdentifier)) return null
+  const profile = await MinecraftApi.getPlayer(normalizedIdentifier)
   if (! profile) return null
 
   return buildPlayer(profile.uuid, profile.name)
