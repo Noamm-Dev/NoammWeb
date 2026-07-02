@@ -455,7 +455,7 @@ export function DatabaseAdminPage() {
     setSuccessMessage(null)
 
     try {
-      const owner = {
+      const owner: DatabaseOwner = {
         hasName: payload.hasName,
         hasSize: payload.hasSize
       }

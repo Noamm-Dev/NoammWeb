@@ -6,11 +6,12 @@ import { ActionButton } from "./ActionButton"
 import { MinecraftSkinViewer } from "./MinecraftSkinViewer"
 import { StatusBanner } from "./StatusBanner"
 import { TextField } from "./TextField"
+import MinecraftApi from "../lib/MinecraftApi"
 
 export interface DatabaseOwnerPayload {
+  uuid: string
   hasName: boolean
   hasSize: boolean
-  uuid: string
 }
 
 interface DatabaseOwnerModalProps {
@@ -24,12 +25,20 @@ interface DatabaseOwnerModalProps {
 
 export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, onClose, onSubmit, uuidReadOnly = false }: DatabaseOwnerModalProps) {
   const [ uuid, setUuid ] = useState(initialUuid)
+  const [ debouncedUuid, setDebouncedUuid ] = useState(initialUuid)
   const [ hasName, setHasName ] = useState(initialOwner?.hasName ?? false)
   const [ hasSize, setHasSize ] = useState(initialOwner?.hasSize ?? false)
   const [ formError, setFormError ] = useState<string | null>(null)
+  const [ isResolving, setIsResolving ] = useState(false)
+
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedUuid(uuid), 500)
+    return () => clearTimeout(handler)
+  }, [ uuid ])
 
   const normalizedUuid = uuid.trim()
-  const previewSkinUrl = `https://mc-heads.net/skin/${ encodeURIComponent(normalizedUuid || "steve") }`
+  const normalizedDebouncedUuid = debouncedUuid.trim()
+  const previewSkinUrl = `https://mc-heads.net/skin/${ encodeURIComponent(normalizedDebouncedUuid || "steve") }`
 
   useEffect(() => {
     const originalBodyOverflow = document.body.style.overflow
@@ -56,18 +65,37 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (! normalizedUuid) return setFormError("A Minecraft player UUID is required.")
+    if (! normalizedUuid) return setFormError("A Minecraft player UUID or username is required.")
 
     setFormError(null)
 
-    const apiError = await onSubmit({
-      hasName,
-      hasSize,
-      uuid: normalizedUuid
-    })
+    let uuid = normalizedUuid
+
+    if (MinecraftApi.isMinecraftUsername(uuid)) {
+      setIsResolving(true)
+      try {
+        const profile = await MinecraftApi.getPlayer(uuid)
+        if (! profile) {
+          setIsResolving(false)
+          return setFormError("This Minecraft username does not exist.")
+        }
+        uuid = MinecraftApi.dashedUUID(profile.uuid) || profile.uuid
+      }
+      catch (e) {
+        setIsResolving(false)
+        return setFormError("Failed to lookup Minecraft username.")
+      }
+      setIsResolving(false)
+    }
+    else if (! MinecraftApi.isMinecraftUuid(uuid)) return setFormError("Enter a valid Minecraft username or UUID.")
+    else uuid = MinecraftApi.dashedUUID(uuid) || uuid
+
+    const apiError = await onSubmit({ uuid, hasName, hasSize })
 
     if (apiError) setFormError(apiError)
   }
+
+  const isBusy = isSaving || isResolving
 
   return (
     <div
@@ -79,7 +107,7 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
       <button
         aria-label="Close owner modal"
         className="absolute inset-0 h-full w-full bg-black/60 backdrop-blur-sm"
-        disabled={ isSaving }
+        disabled={ isBusy }
         onClick={ onClose }
         type="button"
       />
@@ -101,7 +129,7 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
           <ActionButton
             aria-label="Close"
             className="min-h-10 px-3"
-            disabled={ isSaving }
+            disabled={ isBusy }
             onClick={ onClose }
             variant="ghost"
           >
@@ -116,9 +144,9 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
                 autoComplete="off"
                 className={ uuidReadOnly ? "cursor-not-allowed text-white/55" : "" }
                 icon={ <Hash className="h-3.5 w-3.5" aria-hidden="true"/> }
-                label="Minecraft Player UUID"
+                label="Minecraft Player UUID or Username"
                 onChange={ (event) => setUuid(event.target.value) }
-                placeholder="7ab34814-ef33-4745-9af3-dd3fde6c57cd"
+                placeholder="7ab34814-ef33-4745-9af3-dd3fde6c57cd or Steve"
                 readOnly={ uuidReadOnly }
                 value={ uuid }
               />
@@ -157,12 +185,12 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
 
               <ActionButton
                 className="w-full"
-                disabled={ isSaving }
+                disabled={ isBusy }
                 icon={ <Save className="h-4 w-4" aria-hidden="true"/> }
                 type="submit"
                 variant="primary"
               >
-                { isSaving ? "Saving..." : "Save Owner" }
+                { isBusy ? "Saving..." : "Save Owner" }
               </ActionButton>
             </div>
           </div>
