@@ -320,17 +320,17 @@ export function DatabaseAdminPage() {
   }, [ entryFilter, normalizedSearchTerm, ownerOnlyItems, resolvedSearchUuid ])
 
   const stats = useMemo(() => {
-    const namedCount = searchableEntries.filter((item) => item.hasName).length
-    const sizeCount = searchableEntries.filter((item) => item.hasScale).length
-    const ownerOnlyNamedCount = ownerOnlyItems.filter((item) => item.hasName).length
-    const ownerOnlySizeCount = ownerOnlyItems.filter((item) => item.hasScale).length
-    const profit = (namedCount + sizeCount + ownerOnlyNamedCount + ownerOnlySizeCount) * 10
+    const ownerEntries = Object.values(owners)
+    const names = ownerEntries.filter(it => it.hasName).length
+    const sizes = ownerEntries.filter(it => it.hasSize).length
+    const total = names + sizes
+    const profit = total * 10
 
     return {
       money: profit,
-      namedEntries: namedCount + ownerOnlyNamedCount,
-      scaledEntries: sizeCount + ownerOnlySizeCount,
-      totalEntries: searchableEntries.length + ownerOnlyItems.length
+      namedEntries: names,
+      scaledEntries: sizes,
+      totalEntries: total
     }
   }, [ ownerOnlyItems, searchableEntries ])
 
