@@ -155,7 +155,7 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
             <div className="mt-auto grid gap-4">
               <StatusBanner message={ formError } tone="error"/>
 
-            <ActionButton
+              <ActionButton
                 className="w-full"
                 disabled={ isSaving }
                 icon={ <Save className="h-4 w-4" aria-hidden="true"/> }

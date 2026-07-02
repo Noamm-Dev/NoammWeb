@@ -1,10 +1,12 @@
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react"
 import { useEffect, useState } from "react"
-import { type AppNotification, dismissNotification, getNotifications, subscribeNotifications, TONE_CLASSES } from "../lib/notifications"
+import NotificationManager, { type AppNotification, TONE_CLASSES } from "../lib/NotificationManager"
 
 export function NotificationCenter() {
-  const [ notifications, setNotifications ] = useState<AppNotification[]>(getNotifications)
-  useEffect(() => subscribeNotifications(() => setNotifications(getNotifications())), [])
+  const [ notifications, setNotifications ] = useState<AppNotification[]>(NotificationManager.get)
+
+  useEffect(() => NotificationManager.register(() => setNotifications(NotificationManager.get())), [])
+
   if (notifications.length === 0) return null
 
   return (
@@ -23,7 +25,7 @@ export function NotificationCenter() {
             <button
               aria-label="Close notification"
               className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-white/55 transition hover:bg-white/10 hover:text-white"
-              onClick={ () => dismissNotification(notification.id) }
+              onClick={ () => NotificationManager.remove(notification.id) }
               type="button"
             >
               <X className="h-3.5 w-3.5" aria-hidden="true"/>

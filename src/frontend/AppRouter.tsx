@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from "react"
+import { lazy, type ReactNode, Suspense } from "react"
 import { Navigate, Route, Routes } from "react-router-dom"
 import { AppNavigation } from "./components/AppNavigation"
 

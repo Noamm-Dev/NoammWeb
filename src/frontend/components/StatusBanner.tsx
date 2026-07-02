@@ -1,4 +1,4 @@
-import { type NotificationTone, TONE_CLASSES } from '../lib/notifications'
+import { type NotificationTone, TONE_CLASSES } from '../lib/NotificationManager'
 import { AlertCircle, CheckCircle2, Info } from 'lucide-react'
 
 interface StatusBannerProps {

@@ -11,7 +11,7 @@ import { SiteCredit } from "../components/SiteCredit"
 import { TextField } from "../components/TextField"
 import { isMinecraftUsername, lookupMinecraftUsername, type MinecraftProfileLookup, normalizeUuid } from "../lib/minecraft-profile"
 import { getPlainMinecraftText } from "../lib/minecraft-text"
-import { notify } from "../lib/notifications"
+import NotificationManager from "../lib/NotificationManager"
 import DatabaseEntry, { type DatabaseOwner } from "../types/DatabaseEntry"
 import { STORAGE_KEY } from '../content/database'
 import { getErrorMessage } from '../utils.ts'
@@ -171,8 +171,8 @@ export function DatabaseAdminPage() {
     return () => window.clearTimeout(timeoutId)
   }, [ authToken, loadEntries ])
 
-  useEffect(() => notify({ message: errorMessage, tone: "error" }), [ errorMessage ])
-  useEffect(() => notify({ message: successMessage, tone: "success" }), [ successMessage ])
+  useEffect(() => NotificationManager.notify({ message: errorMessage, tone: "error" }), [ errorMessage ])
+  useEffect(() => NotificationManager.notify({ message: successMessage, tone: "success" }), [ successMessage ])
 
   useEffect(() => {
     if (! isMobileMenuOpen) return
@@ -277,16 +277,14 @@ export function DatabaseAdminPage() {
   }, [ sortedEntries ])
 
   const ownerOnlyItems = useMemo(() => {
-    return sortedOwners
-      .filter(([ uuid ]) => ! entries[uuid])
-      .map(([ uuid, owner ]) => ({
-        hasName: owner.hasName,
-        hasScale: owner.hasSize,
-        normalizedUuid: normalizeUuid(uuid),
-        owner,
-        searchText: [ uuid, uuid.replaceAll("-", "") ].join(" ").toLowerCase(),
-        uuid
-      }))
+    return sortedOwners.filter(([ uuid ]) => ! entries[uuid]).map(([ uuid, owner ]) => ({
+      hasName: owner.hasName,
+      hasScale: owner.hasSize,
+      normalizedUuid: normalizeUuid(uuid),
+      owner,
+      searchText: [ uuid, uuid.replaceAll("-", "") ].join(" ").toLowerCase(),
+      uuid
+    }))
   }, [ entries, sortedOwners ])
 
   const filteredEntries = useMemo(() => {

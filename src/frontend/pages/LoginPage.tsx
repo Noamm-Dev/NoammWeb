@@ -7,7 +7,7 @@ import { OtpCodeInput } from "../components/OtpCodeInput"
 import { SiteCredit } from "../components/SiteCredit"
 import { TextField } from "../components/TextField"
 import AuthSession from "../lib/AuthSession"
-import { notify } from "../lib/notifications"
+import NotificationManager from "../lib/NotificationManager"
 import noammApi from "../lib/NoammApi.ts"
 import NoammApi from "../lib/NoammApi.ts"
 import { dashedUUID, isMinecraftUsername, isMinecraftUuid, lookupMinecraftUsername } from "../lib/minecraft-profile"
@@ -63,11 +63,11 @@ export function LoginPage() {
   }, [ navigate ])
 
   useEffect(() => {
-    notify({ message: errorMessage, tone: "error" })
+    NotificationManager.notify({ message: errorMessage, tone: "error" })
   }, [ errorMessage ])
 
   useEffect(() => {
-    notify({ message: successMessage, tone: "success" })
+    NotificationManager.notify({ message: successMessage, tone: "success" })
   }, [ successMessage ])
 
   useEffect(() => {

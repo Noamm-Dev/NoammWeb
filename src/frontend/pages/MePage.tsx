@@ -8,7 +8,7 @@ import { StatusBanner } from "../components/StatusBanner"
 import { TextField } from "../components/TextField"
 import AuthSession from "../lib/AuthSession"
 import NoammApi, { NoammApiError } from "../lib/NoammApi"
-import { notify } from "../lib/notifications"
+import NotificationManager from "../lib/NotificationManager"
 import type { ProfilePlayer, Scale } from "../types/profile"
 import { MinecraftSkinViewer } from "../components/MinecraftSkinViewer"
 import { DEFAULT_SCALE, SCALE_AXES, SLIDER_CONFIG } from "../content/database"
@@ -88,7 +88,7 @@ export function MePage() {
   const expireAuthSession = useCallback(() => {
     AuthSession.clear()
     setSessionRemainingMs(null)
-    notify({ message: "Your MC-ID session expired. Please log in again.", tone: "info" })
+    NotificationManager.notify({ message: "Your MC-ID session expired. Please log in again.", tone: "info" })
     navigate("/login", { replace: true })
   }, [ navigate ])
 
@@ -161,8 +161,8 @@ export function MePage() {
     return () => window.clearInterval(id)
   }, [ expireAuthSession, player ])
 
-  useEffect(() => notify({ message: errorMessage, tone: "error" }), [ errorMessage ])
-  useEffect(() => notify({ message: successMessage, tone: "success" }), [ successMessage ])
+  useEffect(() => NotificationManager.notify({ message: errorMessage, tone: "error" }), [ errorMessage ])
+  useEffect(() => NotificationManager.notify({ message: successMessage, tone: "success" }), [ successMessage ])
 
   const parsedScale = useMemo(() => parseScaleInputState(scaleInput), [ scaleInput ])
 
