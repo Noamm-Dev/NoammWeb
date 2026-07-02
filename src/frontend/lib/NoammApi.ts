@@ -25,7 +25,7 @@ export class NoammApiError extends Error {
 }
 
 class NoammApi {
-  readonly baseURL = "http://127.0.0.1:1111"
+  readonly baseURL = "https://api.noamm.org"
   readonly authConfig = { codeLength: 6, codeTTL: 300 }
 
   async requestMcIdCode(uuid: string) {
