@@ -305,6 +305,7 @@ export function MePage() {
                 <RGBirdflopGenerator
                   disabled={ isSaving }
                   initialText={ displayLabel }
+                  initialValue={ databaseEntry.getName() }
                   onGenerate={ setCustomName }/>
               ) }
             </div>

@@ -1,11 +1,149 @@
 import { useEffect, useRef, useState } from "react"
 import { Bold, Italic, Plus, Trash2 } from "lucide-react"
 import { generateOutput, rgbDefaults } from "@birdflop/rgbirdflop"
+import { getPlainMinecraftText } from "../lib/minecraft-text"
 
 interface RGBirdflopGeneratorProps {
   disabled?: boolean
   initialText?: string
+  initialValue?: string
   onGenerate: (output: string) => void
+}
+
+type RGBColorStop = { hex: string, pos: number }
+
+type StoredRun = {
+  bold: boolean
+  color: string | null
+  italic: boolean
+  shadowColor: string | null
+  text: string
+}
+
+type GeneratorState = {
+  bold: boolean
+  colors: RGBColorStop[]
+  enableShadow: boolean
+  italic: boolean
+  shadowColors: RGBColorStop[]
+  text: string
+}
+
+const DEFAULT_MAIN_COLORS: RGBColorStop[] = [ { hex: "#3E9FD3", pos: 0 } ]
+const DEFAULT_SHADOW_COLORS: RGBColorStop[] = [ { hex: "#1D4B66", pos: 0 } ]
+
+const defaultGeneratorState = (text: string): GeneratorState => ({
+  bold: false,
+  colors: [ ...DEFAULT_MAIN_COLORS ],
+  enableShadow: false,
+  italic: false,
+  shadowColors: [ ...DEFAULT_SHADOW_COLORS ],
+  text
+})
+
+const normalizeHexColor = (value: unknown, fallback: string | null) => {
+  if (typeof value !== "string") return fallback
+  const raw = value.trim()
+  if (! raw) return fallback
+  if (/^#[0-9a-f]{3}$/i.test(raw)) {
+    const hex = raw.slice(1)
+    return `#${ hex[0] }${ hex[0] }${ hex[1] }${ hex[1] }${ hex[2] }${ hex[2] }`.toUpperCase()
+  }
+  if (/^#[0-9a-f]{6}$/i.test(raw) || /^#[0-9a-f]{8}$/i.test(raw)) return raw.toUpperCase()
+  return fallback
+}
+
+const collectStoredRuns = (node: unknown, inherited: Omit<StoredRun, "text"> = {
+  bold: false,
+  color: null,
+  italic: false,
+  shadowColor: null
+}, runs: StoredRun[] = []): StoredRun[] => {
+  if (node === undefined || node === null) return runs
+
+  if ([ "string", "number", "boolean" ].includes(typeof node)) {
+    const text = node.toString()
+    if (text) runs.push({ ...inherited, text })
+    return runs
+  }
+
+  if (Array.isArray(node)) {
+    for (const part of node) collectStoredRuns(part, inherited, runs)
+    return runs
+  }
+
+  if (typeof node !== "object") return runs
+
+  const record = node as Record<string, unknown>
+  const currentStyle = {
+    bold: record.bold !== undefined ? Boolean(record.bold) : inherited.bold,
+    color: normalizeHexColor(record.color, inherited.color),
+    italic: record.italic !== undefined ? Boolean(record.italic) : inherited.italic,
+    shadowColor: normalizeHexColor(record.shadow_color ?? record.shadowColor, inherited.shadowColor)
+  }
+
+  if (record.text !== undefined && record.text !== null) {
+    const text = record.text.toString()
+    if (text) runs.push({ ...currentStyle, text })
+  }
+
+  if (Array.isArray(record.extra)) {
+    for (const part of record.extra) collectStoredRuns(part, currentStyle, runs)
+  }
+
+  return runs
+}
+
+const buildColorStops = (runs: StoredRun[], key: "color" | "shadowColor", fallback: RGBColorStop[]) => {
+  const totalLength = runs.reduce((sum, run) => sum + run.text.length, 0)
+  if (totalLength <= 0) return [ ...fallback ]
+
+  const stops: RGBColorStop[] = []
+  let consumedLength = 0
+  let previousColor: string | null = null
+
+  for (const run of runs) {
+    const color = run[key]
+    if (color && color !== previousColor) {
+      stops.push({ hex: color, pos: Math.round((consumedLength / totalLength) * 100) })
+      previousColor = color
+    }
+    consumedLength += run.text.length
+  }
+
+  if (stops.length === 0) return [ ...fallback ]
+  if (stops[0].pos !== 0) stops[0] = { ...stops[0], pos: 0 }
+  return stops
+}
+
+const buildInitialState = (initialValue: string | undefined, initialText: string): GeneratorState => {
+  const fallbackText = initialText.trim()
+  const rawValue = initialValue?.trim() ?? ""
+
+  if (! rawValue) return defaultGeneratorState(fallbackText)
+
+  try {
+    const parsed = JSON.parse(rawValue) as unknown
+    const runs = collectStoredRuns(parsed)
+    const plainText = getPlainMinecraftText(rawValue).trim()
+
+    if (runs.length === 0) return defaultGeneratorState(plainText || fallbackText)
+
+    const shadowColors = buildColorStops(runs, "shadowColor", DEFAULT_SHADOW_COLORS)
+
+    return {
+      bold: runs.some((run) => run.bold),
+      colors: buildColorStops(runs, "color", DEFAULT_MAIN_COLORS),
+      enableShadow: shadowColors.some((stop) => stop.hex !== DEFAULT_SHADOW_COLORS[0].hex),
+      italic: runs.some((run) => run.italic),
+      shadowColors,
+      text: plainText || fallbackText
+    }
+  }
+  catch {
+    const plainText = getPlainMinecraftText(rawValue).trim()
+    return defaultGeneratorState(plainText || fallbackText)
+  }
 }
 
 function MultiColorSlider({ colors, onChange, disabled }: { colors: { hex: string, pos: number }[], onChange: (colors: { hex: string, pos: number }[]) => void, disabled?: boolean }) {
@@ -86,21 +224,16 @@ function Toggle({ checked, onChange, disabled, label }: { checked: boolean, onCh
   )
 }
 
-export function RGBirdflopGenerator({ disabled, initialText = "", onGenerate }: RGBirdflopGeneratorProps) {
-  const [ text, setText ] = useState(initialText)
-  const [ colors, setColors ] = useState([ { hex: "#3E9FD3", pos: 0 } ])
+export function RGBirdflopGenerator({ disabled, initialText = "", initialValue, onGenerate }: RGBirdflopGeneratorProps) {
+  const initialState = useState(() => buildInitialState(initialValue, initialText))[0]
+  const [ text, setText ] = useState(initialState.text)
+  const [ colors, setColors ] = useState(initialState.colors)
 
-  const [ bold, setBold ] = useState(false)
-  const [ italic, setItalic ] = useState(false)
+  const [ bold, setBold ] = useState(initialState.bold)
+  const [ italic, setItalic ] = useState(initialState.italic)
 
-  const [ enableShadow, setEnableShadow ] = useState(false)
-  const [ shadowColors, setShadowColors ] = useState([ { hex: "#1D4B66", pos: 0 } ])
-
-  useEffect(() => {
-    if (initialText && ! text) {
-      setText(initialText)
-    }
-  }, [ initialText ])
+  const [ enableShadow, setEnableShadow ] = useState(initialState.enableShadow)
+  const [ shadowColors, setShadowColors ] = useState(initialState.shadowColors)
 
   useEffect(() => {
     const limit = Math.max(1, text.length)
