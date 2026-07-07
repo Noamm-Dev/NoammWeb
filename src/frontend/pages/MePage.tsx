@@ -1,6 +1,6 @@
 import { type FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { Navigate, useNavigate } from "react-router-dom"
-import { LogOut, RotateCcw, Save, Timer, Type } from "lucide-react"
+import { LogOut, RotateCcw, Timer, Type } from "lucide-react"
 import { ActionButton } from "../components/ActionButton"
 import { MinecraftTextPreview } from "../components/MinecraftTextPreview"
 import { SiteCredit } from "../components/SiteCredit"
@@ -14,6 +14,7 @@ import { MinecraftSkinViewer } from "../components/MinecraftSkinViewer"
 import { DEFAULT_SCALE, SCALE_AXES, SLIDER_CONFIG } from "../content/database"
 import { formatTime, getErrorMessage } from '../utils'
 import DatabaseEntry, { type DatabaseEntryAxis } from '../types/DatabaseEntry'
+import { RGBirdflopGenerator } from "../components/RGBirdflopGenerator"
 
 type SessionSource = "local" | "server"
 type ParsedScale = { error: string, value: null } | { error: null, value: Scale }
@@ -25,11 +26,6 @@ const entryToScaleInput = (entry: DatabaseEntry): ScaleInputState => ({
   x: formatScaleInput(entry.getSizeX()),
   y: formatScaleInput(entry.getSizeY()),
   z: formatScaleInput(entry.getSizeZ())
-})
-const scaleToScaleInput = (scale: Scale): ScaleInputState => ({
-  x: formatScaleInput(scale.x),
-  y: formatScaleInput(scale.y),
-  z: formatScaleInput(scale.z)
 })
 const parseScaleInputState = (scaleInput: ScaleInputState) => validateScale({
   x: parseScaleInput(scaleInput.x),
@@ -72,6 +68,19 @@ export function MePage() {
   const [ errorMessage, setErrorMessage ] = useState<string | null>(null)
   const [ successMessage, setSuccessMessage ] = useState<string | null>(null)
 
+  useEffect(() => {
+    const originalBodyOverflow = document.body.style.overflow
+    const originalHtmlOverflow = document.documentElement.style.overflow
+
+    document.body.style.overflow = "hidden"
+    document.documentElement.style.overflow = "hidden"
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow
+      document.documentElement.style.overflow = originalHtmlOverflow
+    }
+  }, [])
+
   const setCustomName = (name: string) => setDatabaseEntry((entry) => entry.copy().setName(name))
   const setCustomScale = (axis: DatabaseEntryAxis, value: string) => {
     const normalizedValue = value.replace(/,/g, ".")
@@ -80,14 +89,20 @@ export function MePage() {
     const parsedValue = parseScaleInput(normalizedValue)
     if (Number.isFinite(parsedValue)) setDatabaseEntry((entry) => entry.copy().setSize(axis, parsedValue))
   }
-  const setCustomScales = (scale: Scale) => {
-    setScaleInput(scaleToScaleInput(scale))
-    setDatabaseEntry((entry) => entry.copy().setSizeX(scale.x).setSizeY(scale.y).setSizeZ(scale.z))
+
+  const resetCustomScale = () => {
+    setScaleInput({ x: "1.00", y: "1.00", z: "1.00" })
+    setDatabaseEntry((entry) => entry.copy().setSizeX(1).setSizeY(1).setSizeZ(1))
   }
 
   const expireAuthSession = useCallback(() => {
     AuthSession.clear()
+    setPlayer(null)
+    setSessionSource(null)
     setSessionRemainingMs(null)
+    setIsSaving(false)
+    setSuccessMessage(null)
+    setErrorMessage(null)
     NotificationManager.notify({ message: "Your MC-ID session expired. Please log in again.", tone: "info" })
     navigate("/login", { replace: true })
   }, [ navigate ])
@@ -168,7 +183,6 @@ export function MePage() {
 
   const customName = databaseEntry.getName().trim() || null
   const previewScale = parsedScale.error === null ? parsedScale.value : (player?.scale ?? null)
-  const nameTag = player ? (customName ?? player.displayName ?? player.username ?? player.uuid) : ""
   const canEditName = player?.hasName !== false
   const canEditSize = player?.hasSize !== false
   const serverBacked = sessionSource === "server"
@@ -222,6 +236,8 @@ export function MePage() {
       setSuccessMessage("Profile saved.")
     }
     catch (error) {
+      if (error instanceof NoammApiError && (error.status === 401 || error.status === 403)) return expireAuthSession()
+
       setErrorMessage(getErrorMessage(error))
     }
     finally {
@@ -237,7 +253,7 @@ export function MePage() {
   }
 
   if (isLoading) return (
-    <main className="relative grid min-h-screen place-items-center px-5 py-8">
+    <main className="relative grid h-screen overflow-hidden place-items-center px-5 py-8">
       <section className="glass-card w-full max-w-[460px] p-6 text-center">
         <p className="text-sm font-semibold text-white/55">Loading profile...</p>
         <SiteCredit className="mt-5"/>
@@ -247,19 +263,34 @@ export function MePage() {
 
   if (! player) return <Navigate replace to="/login"/>
 
-  const skinUrl = `https://mc-heads.net/skin/${ encodeURIComponent(player.username ?? player.uuid) }`
+  const playerIdentity = player.username ?? player.uuid
+  const encodedPlayerIdentity = encodeURIComponent(playerIdentity)
+  const skinUrl = `https://mc-heads.net/skin/${ encodedPlayerIdentity }`
   const displayLabel = player.username ?? player.uuid
-  const birdFlopRgbUrl = `https://www.birdflop.com/resources/rgb/?colors=%5B%7B%22hex%22%3A%22%233E9FD3%22%2C%22pos%22%3A100%7D%5D&text=${ encodeURIComponent(displayLabel) }&format=%7B%22color%22%3A%22JSON%22%7D`
+  const isDonor = canEditName || canEditSize
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4 py-5 sm:px-6 lg:px-8">
-      <section className="glass-card mx-auto w-full max-w-6xl p-5 sm:p-7">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/38">Profile</p>
-            <h1 className="gradient-text mt-1 break-words text-3xl font-extrabold leading-tight sm:text-4xl">
-              { displayLabel }
-            </h1>
+    <main className="relative flex h-screen items-center justify-center overflow-hidden px-4 py-8">
+      <section className="glass-card flex mx-auto w-full max-w-4xl flex-col px-8 py-7 text-center sm:px-9 sm:py-8">
+
+        {/* Editor Header */ }
+        <div className="flex flex-row items-center justify-between mb-8 pb-6 border-b border-white/[0.04]">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <img
+                src={ `https://mc-heads.net/head/${ encodedPlayerIdentity }/96` }
+                alt={ `${ displayLabel } Minecraft head` }
+                className="h-16 w-16 rounded-full border border-white/10 bg-[#111116] object-contain p-1.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+                style={ { imageRendering: "pixelated" } }
+              />
+              <span className="absolute -bottom-2 left-1/2 min-w-[58px] -translate-x-1/2 rounded-full bg-[#70a7ff] px-2.5 py-1 text-center text-[10px] font-extrabold uppercase leading-none tracking-wide text-white shadow-[0_6px_16px_rgba(112,167,255,0.34)] select-none">
+                { isDonor ? "Donor" : "User" }
+              </span>
+            </div>
+            <div className="text-left">
+              <h1 className="text-xl font-bold text-white tracking-tight leading-none mb-1">{ displayLabel }</h1>
+              <p className="text-xs text-zinc-500 font-medium">Donator Customisation</p>
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -283,137 +314,141 @@ export function MePage() {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-          <div className="min-w-0">
-            { (! canEditName || ! canEditSize) && (
-              <div className="mb-6 rounded-2xl border border-yellow-500/20 bg-yellow-500/[0.08] p-4 text-sm font-semibold text-yellow-200">
-                You do not have permission to edit your { ! canEditName && ! canEditSize ? "custom name and size" : ! canEditName ? "custom name" : "size" }.
-              </div>
-            ) }
-            <form 
-              className="grid gap-5" 
-              onSubmit={ handleSubmit }
-              onKeyDown={ (e) => {
-                if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
-                  e.preventDefault()
-                }
-              } }
-            >
-              <div className="max-w-[730px]">
+        <form
+          onSubmit={ handleSubmit }
+          onKeyDown={ (e) => {
+            if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
+              e.preventDefault()
+            }
+          } }
+        >
+          {/* Main Two Column Workspace */ }
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+
+            {/* LEFT COLUMN: Customizing Inputs */ }
+            <div className="flex flex-col gap-5 text-left">
+
+              {/* Visual Gradient Generator First, Raw JSON Field Second */ }
+              <div className="flex flex-col gap-4">
+                { canEditName && (
+                  <RGBirdflopGenerator
+                    disabled={ isSaving }
+                    initialText={ displayLabel }
+                    initialValue={ databaseEntry.getName() }
+                    onGenerate={ setCustomName }
+                    previewEmptyLabel={ displayLabel }
+                    previewValue={ databaseEntry.getName() }
+                  />
+                ) }
+
+                { ! canEditName && (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3.5">
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">
+                      Display Name Preview
+                    </span>
+                    <MinecraftTextPreview
+                      className="minecraft-preview-centered min-h-[48px]"
+                      emptyLabel={ displayLabel }
+                      value={ databaseEntry.getName() }
+                    />
+                  </div>
+                ) }
+
                 <TextField
                   autoComplete="off"
                   disabled={ isSaving || ! canEditName }
-                  icon={ <Type className="h-3.5 w-3.5" aria-hidden="true"/> }
-                  label="Custom Name (JSON Component)"
+                  icon={ <Type className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true"/> }
+                  label="Custom Name"
+                  multiline={ false }
                   onChange={ event => setCustomName(event.target.value) }
                   placeholder={ `{"text":"${ displayLabel }","color":"#4498DB"}` }
                   value={ databaseEntry.getName() }
                 />
-                <p className="mb-2 mt-2 flex items-center gap-1.5 text-xs font-semibold text-white/42">
-                  <span aria-hidden="true">ⓘ</span>
-                  <span>
-                    To format a custom name, use{ " " }
-                    <a
-                      className="text-cyan-200/85 transition hover:text-cyan-100"
-                      href={ birdFlopRgbUrl }
-                      rel="noreferrer"
-                      target="_blank"
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: Interactive Skin Viewer & Scaling */ }
+            <div className="flex flex-col gap-4 text-left">
+
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Player Scale</label>
+                <ActionButton
+                  aria-label="Reset scale"
+                  className="h-9 min-h-9 rounded-xl px-3 py-0 text-[10px] font-bold uppercase tracking-wider"
+                  disabled={ isSaving || ! canEditSize }
+                  icon={ <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/> }
+                  onClick={ resetCustomScale }
+                  variant="secondary"
+                >
+                  Reset
+                </ActionButton>
+              </div>
+
+              {/* Transparent viewport container */ }
+              <div className="relative flex h-[340px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+                <Suspense fallback={
+                  <div className="grid aspect-[3/4] h-[320px] w-full place-items-center rounded-xl bg-black/20 text-xs font-semibold text-zinc-500">
+                    Loading skin...
+                  </div>
+                }>
+                  <MinecraftSkinViewer height={ 320 } scale={ previewScale } skinUrl={ skinUrl } width={ 320 }/>
+                </Suspense>
+              </div>
+
+              {/* Scale Tuning Sliders */ }
+              <div className="flex flex-col gap-4 mt-2">
+                { SCALE_AXES.map((axis) => (
+                  <div className="grid grid-cols-[1rem_minmax(0,1fr)_4.75rem] items-center gap-3" key={ axis }>
+                    <label
+                      className="text-xs font-bold text-zinc-500"
+                      htmlFor={ `me-scale-${ axis }` }
                     >
-                      BirdFlop RGB
-                    </a>
-                    .
-                  </span>
-                </p>
-
+                      { axis.toUpperCase() }
+                    </label>
+                    <input
+                      aria-label={ `Size ${ axis.toUpperCase() } slider` }
+                      className="scale-slider"
+                      disabled={ isSaving || ! canEditSize }
+                      max={ SLIDER_CONFIG.max }
+                      min={ SLIDER_CONFIG.min }
+                      onChange={ (e) => setCustomScale(axis, e.target.value) }
+                      step={ SLIDER_CONFIG.step }
+                      type="range"
+                      value={ getScaleSliderValue(scaleInput[axis], databaseEntry.getSize(axis) ?? DEFAULT_SCALE[axis]) }
+                    />
+                    <input
+                      aria-label={ `Exact size ${ axis.toUpperCase() }` }
+                      className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.05] px-2 text-center font-mono text-sm font-bold text-white outline-none transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={ isSaving || ! canEditSize }
+                      id={ `me-scale-${ axis }` }
+                      inputMode="decimal"
+                      onChange={ (e) => setCustomScale(axis, e.target.value) }
+                      type="text"
+                      value={ scaleInput[axis] }
+                    />
+                  </div>
+                )) }
               </div>
 
-              <div>
-                <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-white/60">
-                  <Type className="h-3.5 w-3.5" aria-hidden="true"/>
-                  <span>Preview</span>
-                </span>
-                <div className="max-w-[730px]">
-                  <MinecraftTextPreview
-                    className="minecraft-preview-centered"
-                    emptyLabel={ displayLabel }
-                    value={ databaseEntry.getName() }
-                  />
-                </div>
-              </div>
-
-              <div className="h-px bg-white/10"/>
-
-              <div className="grid gap-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Scale</p>
-                  <ActionButton
-                    aria-label="Reset scale"
-                    className="h-9 min-h-9 w-9 px-0 py-0"
-                    disabled={ isSaving || ! canEditSize }
-                    icon={ <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/> }
-                    onClick={ () => setCustomScales(player.scale ?? DEFAULT_SCALE) }
-                    variant="ghost"
-                  />
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-3">
-                  { SCALE_AXES.map((axis) => (
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3" key={ axis }>
-                      <div className="flex items-center justify-between gap-3">
-                        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55" htmlFor={ `scale-${ axis }` }>
-                          Size { axis.toUpperCase() }
-                        </label>
-                        <input
-                          className="h-10 w-20 rounded-xl border border-white/10 bg-white/[0.05] px-2 text-center text-sm font-semibold text-white outline-none transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={ isSaving || ! canEditSize }
-                          id={ `scale-${ axis }` }
-                          inputMode="decimal"
-                          onChange={ (e) => setCustomScale(axis, e.target.value) }
-                          type="text"
-                          value={ scaleInput[axis] }
-                        />
-                      </div>
-                      <input
-                        aria-label={ `Size ${ axis.toUpperCase() } slider` }
-                        className="scale-slider mt-3"
-                        disabled={ isSaving || ! canEditSize }
-                        max={ SLIDER_CONFIG.max }
-                        min={ SLIDER_CONFIG.min }
-                        onChange={ (e) => setCustomScale(axis, e.target.value) }
-                        step={ SLIDER_CONFIG.step }
-                        type="range"
-                        value={ getScaleSliderValue(scaleInput[axis], databaseEntry.getSize(axis) ?? DEFAULT_SCALE[axis]) }
-                      />
-                    </div>
-                  )) }
-                </div>
-              </div>
-
-              <StatusBanner message={ parsedScale.error } tone="error"/>
-
-              <ActionButton
-                disabled={ isSaving || ! serverBacked || ! hasChanges || parsedScale.error !== null || (! canEditName && ! canEditSize) }
-                icon={ <Save className="h-4 w-4" aria-hidden="true"/> }
-                type="submit"
-                variant="primary"
-              >
-                { isSaving ? "Saving..." : "Save Profile" }
-              </ActionButton>
-            </form>
+            </div>
           </div>
 
-          <aside className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 lg:sticky lg:top-6">
-            <Suspense fallback={
-              <div className="grid aspect-[3/4] min-h-[360px] place-items-center rounded-2xl border border-white/10 bg-black/20 text-sm font-semibold text-white/45">
-                Loading skin...
-              </div>
-            }>
-              <MinecraftSkinViewer height={ 400 } nameTag={ nameTag } scale={ previewScale } skinUrl={ skinUrl } width={ 300 }/>
-            </Suspense>
-          </aside>
-        </div>
+          <hr className="border-white/[0.04] my-6"/>
 
-        <SiteCredit className="mt-6"/>
+          {/* Save & Validation footer */ }
+          <div className="flex flex-col gap-3">
+            <StatusBanner message={ parsedScale.error } tone="error"/>
+
+            <ActionButton
+              disabled={ isSaving || ! serverBacked || ! hasChanges || parsedScale.error !== null || (! canEditName && ! canEditSize) }
+              type="submit"
+              variant="primary"
+              className="w-full bg-[#70a7ff] hover:bg-[#5896ff] disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-bold py-3.5 rounded-xl transition-all duration-200 text-center flex justify-center items-center"
+            >
+              { isSaving ? "Saving..." : "Save Changes" }
+            </ActionButton>
+          </div>
+        </form>
       </section>
     </main>
   )

@@ -203,6 +203,33 @@ button:disabled {
   line-height: 1.4;
 }
 
+.rgbirdflop-color-grid {
+  scrollbar-gutter: stable;
+  scrollbar-color: rgba(112, 167, 255, 0.55) rgba(255, 255, 255, 0.06);
+  scrollbar-width: thin;
+}
+
+.rgbirdflop-color-grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+.rgbirdflop-color-grid::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.rgbirdflop-color-grid::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(112, 167, 255, 0.55);
+  background-clip: padding-box;
+}
+
+.rgbirdflop-color-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(112, 167, 255, 0.72);
+  background-clip: padding-box;
+}
+
 .otp-input {
   height: 3.25rem;
   width: 100%;

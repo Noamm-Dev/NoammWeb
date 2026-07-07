@@ -25,7 +25,7 @@ export function AppRouter() {
       <Routes>
         <Route path="/" element={ <HomePage/> }/>
         <Route path="/login" element={ <NavigationPage><LoginPage/></NavigationPage> }/>
-        <Route path="/me" element={ <NavigationPage><MePage/></NavigationPage> }/>
+        <Route path="/me" element={ <MePage/> }/>
         <Route path="/database" element={ <NavigationPage><DatabaseAdminPage/></NavigationPage> }/>
         <Route path="/preview" element={ <NavigationPage><PreviewPage/></NavigationPage> }/>
         <Route path="/admin" element={ <Navigate replace to="/database"/> }/>

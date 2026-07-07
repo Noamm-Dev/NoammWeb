@@ -78,6 +78,13 @@ function parseColor(colorValue: string) {
 }
 
 function normalizeColor(colorValue: unknown, fallbackColor: string, preferArgb: boolean) {
+  if (Array.isArray(colorValue) && colorValue.length >= 3) {
+    const r = Math.round((Number(colorValue[0]) || 0) * 255)
+    const g = Math.round((Number(colorValue[1]) || 0) * 255)
+    const b = Math.round((Number(colorValue[2]) || 0) * 255)
+    const a = colorValue.length > 3 ? Number(colorValue[3]) : 1
+    return `rgba(${ r }, ${ g }, ${ b }, ${ formatAlpha(a) })`
+  }
   if (typeof colorValue === "number") return intToCssColor(colorValue, preferArgb) ?? fallbackColor
   const raw = colorValue?.toString().trim() ?? ""
   if (! raw) return fallbackColor

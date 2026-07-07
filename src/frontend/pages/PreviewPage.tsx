@@ -2,7 +2,7 @@ import { Suspense, useEffect, useMemo, useState } from "react"
 import { RotateCcw, Type, UserRound } from "lucide-react"
 import { ActionButton } from "../components/ActionButton"
 import { MinecraftSkinViewer } from "../components/MinecraftSkinViewer"
-import { MinecraftTextPreview } from "../components/MinecraftTextPreview"
+import { RGBirdflopGenerator } from "../components/RGBirdflopGenerator"
 import { SiteCredit } from "../components/SiteCredit"
 import { StatusBanner } from "../components/StatusBanner"
 import { TextField } from "../components/TextField"
@@ -68,145 +68,139 @@ export function PreviewPage() {
   const previewUsername = isMinecraftUsername(requestedUsername) ? requestedUsername : PREVIEW_USERNAME
   const previewScale = parsedScale.error === null ? parsedScale.value : DEFAULT_SCALE
   const nameTag = customName.trim() || previewUsername
-  const skinUrl = `https://mc-heads.net/skin/${ encodeURIComponent(previewUsername) }`
-  const birdFlopRgbUrl = `https://www.birdflop.com/resources/rgb/?colors=%5B%7B%22hex%22%3A%22%233E9FD3%22%2C%22pos%22%3A100%7D%5D&text=${ encodeURIComponent(previewUsername) }&format=%7B%22color%22%3A%22JSON%22%7D`
+  const encodedPreviewUsername = encodeURIComponent(previewUsername)
+  const skinUrl = `https://mc-heads.net/skin/${ encodedPreviewUsername }`
 
   const setCustomScale = (axis: ScaleAxis, value: string) => {
     const normalizedValue = value.replace(/,/g, ".")
     setScaleInput((currentState) => ({ ...currentState, [axis]: normalizedValue }))
   }
 
+  const resetScale = () => setScaleInput(scaleToScaleInput(DEFAULT_SCALE))
+
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4 py-5 sm:px-6 lg:px-8">
-      <section className="glass-card mx-auto w-full max-w-6xl p-5 sm:p-7">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/38">Preview</p>
-            <h1 className="gradient-text mt-1 break-words text-3xl font-extrabold leading-tight sm:text-4xl">
-              { previewUsername }
-            </h1>
+    <main className="relative flex min-h-screen items-center justify-center px-4 py-8">
+      <section className="glass-card mx-auto flex w-full max-w-4xl flex-col px-8 py-7 text-center sm:px-9 sm:py-8">
+        <div className="mb-8 flex flex-row items-center justify-between border-b border-white/[0.04] pb-6">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="relative shrink-0">
+              <img
+                alt={ `${ previewUsername } Minecraft head` }
+                className="h-16 w-16 rounded-full border border-white/10 bg-[#111116] object-contain p-1.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+                src={ `https://mc-heads.net/head/${ encodedPreviewUsername }/96` }
+                style={ { imageRendering: "pixelated" } }
+              />
+              <span className="absolute -bottom-2 left-1/2 min-w-[58px] -translate-x-1/2 rounded-full bg-[#70a7ff] px-2.5 py-1 text-center text-[10px] font-extrabold uppercase leading-none tracking-wide text-white shadow-[0_6px_16px_rgba(112,167,255,0.34)] select-none">
+                Preview
+              </span>
+            </div>
+            <div className="min-w-0 text-left">
+              <h1 className="truncate text-xl font-bold leading-none tracking-tight text-white">
+                { previewUsername }
+              </h1>
+              <p className="mt-1 text-xs font-medium text-zinc-500">Donator Customisation Preview</p>
+            </div>
           </div>
         </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-          <div className="min-w-0">
-            <div className="grid gap-5">
-              <div className="max-w-[730px]">
-                <TextField
-                  autoComplete="off"
-                  icon={ <UserRound className="h-3.5 w-3.5" aria-hidden="true"/> }
-                  label="Minecraft Account"
-                  onChange={ event => setMinecraftUsername(event.target.value) }
-                  placeholder={ PREVIEW_USERNAME }
-                  value={ minecraftUsername }
-                />
-              </div>
+        <div className="grid grid-cols-1 items-start gap-8 md:grid-cols-2">
+          <div className="flex flex-col gap-5 text-left">
+            <TextField
+              autoComplete="off"
+              icon={ <UserRound className="h-3.5 w-3.5" aria-hidden="true"/> }
+              label="Minecraft Account"
+              onChange={ event => setMinecraftUsername(event.target.value) }
+              placeholder={ PREVIEW_USERNAME }
+              value={ minecraftUsername }
+            />
 
-              <div className="max-w-[730px]">
-                <TextField
-                  autoComplete="off"
-                  icon={ <Type className="h-3.5 w-3.5" aria-hidden="true"/> }
-                  label="Custom Name (JSON Component)"
-                  onChange={ event => setCustomName(event.target.value) }
-                  placeholder={ `{"text":"${ previewUsername }","color":"#4498DB"}` }
-                  value={ customName }
-                />
-                <p className="mb-2 mt-2 flex items-center gap-1.5 text-xs font-semibold text-white/42">
-                  <span aria-hidden="true">ⓘ</span>
-                  <span>
-                    To format a custom name, use{ " " }
-                    <a
-                      className="text-cyan-200/85 transition hover:text-cyan-100"
-                      href={ birdFlopRgbUrl }
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      BirdFlop RGB
-                    </a>
-                    .
-                  </span>
-                </p>
-              </div>
+            <div className="flex flex-col gap-4">
+              <RGBirdflopGenerator
+                key={ previewUsername }
+                initialText={ previewUsername }
+                initialValue={ customName }
+                onGenerate={ setCustomName }
+                previewEmptyLabel={ previewUsername }
+                previewValue={ customName }
+              />
 
-              <div>
-                <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-white/60">
-                  <Type className="h-3.5 w-3.5" aria-hidden="true"/>
-                  <span>Preview</span>
-                </span>
-                <div className="max-w-[730px]">
-                  <MinecraftTextPreview
-                    className="minecraft-preview-centered"
-                    emptyLabel={ previewUsername }
-                    value={ customName }
-                  />
-                </div>
-              </div>
-
-              <div className="h-px bg-white/10"/>
-
-              <div className="grid gap-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">Scale</p>
-                  <ActionButton
-                    aria-label="Reset scale"
-                    className="h-9 min-h-9 w-9 px-0 py-0"
-                    icon={ <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/> }
-                    onClick={ () => setScaleInput(scaleToScaleInput(DEFAULT_SCALE)) }
-                    variant="ghost"
-                  />
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-3">
-                  { SCALE_AXES.map((axis) => (
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3" key={ axis }>
-                      <div className="flex items-center justify-between gap-3">
-                        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/55" htmlFor={ `preview-scale-${ axis }` }>
-                          Size { axis.toUpperCase() }
-                        </label>
-                        <input
-                          className="h-10 w-20 rounded-xl border border-white/10 bg-white/[0.05] px-2 text-center text-sm font-semibold text-white outline-none transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/15"
-                          id={ `preview-scale-${ axis }` }
-                          inputMode="decimal"
-                          onChange={ (event) => setCustomScale(axis, event.target.value) }
-                          type="text"
-                          value={ scaleInput[axis] }
-                        />
-                      </div>
-                      <input
-                        aria-label={ `Size ${ axis.toUpperCase() } slider` }
-                        className="scale-slider mt-3"
-                        max={ SLIDER_CONFIG.max }
-                        min={ SLIDER_CONFIG.min }
-                        onChange={ (event) => setCustomScale(axis, event.target.value) }
-                        step={ SLIDER_CONFIG.step }
-                        type="range"
-                        value={ getScaleSliderValue(scaleInput[axis], DEFAULT_SCALE[axis]) }
-                      />
-                    </div>
-                  )) }
-                </div>
-              </div>
-
-              <StatusBanner message={ parsedScale.error } tone="error"/>
+              <TextField
+                autoComplete="off"
+                icon={ <Type className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true"/> }
+                label="Custom Name"
+                multiline={ false }
+                onChange={ event => setCustomName(event.target.value) }
+                placeholder={ `{"text":"${ previewUsername }","color":"#4498DB"}` }
+                value={ customName }
+              />
             </div>
           </div>
 
-          <aside className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 lg:sticky lg:top-6">
-            <Suspense fallback={
-              <div className="grid aspect-[3/4] min-h-[360px] place-items-center rounded-2xl border border-white/10 bg-black/20 text-sm font-semibold text-white/45">
-                Loading skin...
-              </div>
-            }>
-              <MinecraftSkinViewer
-                key={ skinUrl }
-                height={ 400 }
-                nameTag={ nameTag }
-                scale={ previewScale }
-                skinUrl={ skinUrl }
-                width={ 300 }
-              />
-            </Suspense>
-          </aside>
+          <div className="flex flex-col gap-4 text-left">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Player Scale</label>
+              <ActionButton
+                aria-label="Reset scale"
+                className="h-9 min-h-9 rounded-xl px-3 py-0 text-[10px] font-bold uppercase tracking-wider"
+                icon={ <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/> }
+                onClick={ resetScale }
+                variant="secondary"
+              >
+                Reset
+              </ActionButton>
+            </div>
+
+            <div className="relative flex h-[340px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
+              <Suspense fallback={
+                <div className="grid aspect-[3/4] h-[320px] w-full place-items-center rounded-xl bg-black/20 text-xs font-semibold text-zinc-500">
+                  Loading skin...
+                </div>
+              }>
+                <MinecraftSkinViewer
+                  key={ skinUrl }
+                  height={ 320 }
+                  nameTag={ nameTag }
+                  scale={ previewScale }
+                  skinUrl={ skinUrl }
+                  width={ 320 }
+                />
+              </Suspense>
+            </div>
+
+            <div className="mt-2 flex flex-col gap-4">
+              { SCALE_AXES.map((axis) => (
+                <div className="grid grid-cols-[1rem_minmax(0,1fr)_4.75rem] items-center gap-3" key={ axis }>
+                  <label
+                    className="text-xs font-bold text-zinc-500"
+                    htmlFor={ `preview-scale-${ axis }` }
+                  >
+                    { axis.toUpperCase() }
+                  </label>
+                  <input
+                    aria-label={ `Size ${ axis.toUpperCase() } slider` }
+                    className="scale-slider"
+                    max={ SLIDER_CONFIG.max }
+                    min={ SLIDER_CONFIG.min }
+                    onChange={ (event) => setCustomScale(axis, event.target.value) }
+                    step={ SLIDER_CONFIG.step }
+                    type="range"
+                    value={ getScaleSliderValue(scaleInput[axis], DEFAULT_SCALE[axis]) }
+                  />
+                  <input
+                    aria-label={ `Exact size ${ axis.toUpperCase() }` }
+                    className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.05] px-2 text-center font-mono text-sm font-bold text-white outline-none transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/15"
+                    id={ `preview-scale-${ axis }` }
+                    inputMode="decimal"
+                    onChange={ (event) => setCustomScale(axis, event.target.value) }
+                    type="text"
+                    value={ scaleInput[axis] }
+                  />
+                </div>
+              )) }
+            </div>
+
+            <StatusBanner message={ parsedScale.error } tone="error"/>
+          </div>
         </div>
 
         <SiteCredit className="mt-6"/>

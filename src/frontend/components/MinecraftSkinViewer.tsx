@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react"
 import { IdleAnimation, SkinViewer as SkinViewer3D } from "skinview3d"
-import panoramaUrl from "../assets/panorama.webp"
 import fallbackSkinUrl from "../assets/steve.png"
 import { MinecraftNameTagObject } from "../lib/MinecraftNameTagObject"
 import type { Scale } from "../types/profile"
@@ -85,7 +84,7 @@ export function MinecraftSkinViewer({ capeUrl, height = 400, nameTag = null, sca
     viewer.controls.dampingFactor = 0.08
     viewer.controls.rotateSpeed = 0.8
     viewer.controls.zoomSpeed = 0.8
-    viewer.controls.target.set(0, 8, 0)
+    viewer.controls.target.set(0, 2, 0)
     viewer.zoom = 0.72
     viewer.fov = 42
     viewer.globalLight.intensity = 3
@@ -96,7 +95,7 @@ export function MinecraftSkinViewer({ capeUrl, height = 400, nameTag = null, sca
     viewer.animation = idleAnimation
 
     applyViewerState(viewer, null)
-    void viewer.loadPanorama(panoramaUrl)
+    //void viewer.loadPanorama(panoramaUrl)
     void loadViewerTextures(viewer, skinUrl, capeUrl)
 
     return () => {
@@ -126,7 +125,7 @@ export function MinecraftSkinViewer({ capeUrl, height = 400, nameTag = null, sca
 
   return (
     <div
-      className="mx-auto w-full overflow-hidden rounded-[1.75rem]"
+      className="mx-auto w-full overflow-hidden rounded-[0.3rem]"
       style={ { maxWidth: `${ width }px` } }
     >
       <canvas
