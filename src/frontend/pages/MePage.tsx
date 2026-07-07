@@ -68,6 +68,19 @@ export function MePage() {
   const [ errorMessage, setErrorMessage ] = useState<string | null>(null)
   const [ successMessage, setSuccessMessage ] = useState<string | null>(null)
 
+  useEffect(() => {
+    const originalBodyOverflow = document.body.style.overflow
+    const originalHtmlOverflow = document.documentElement.style.overflow
+
+    document.body.style.overflow = "hidden"
+    document.documentElement.style.overflow = "hidden"
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow
+      document.documentElement.style.overflow = originalHtmlOverflow
+    }
+  }, [])
+
   const setCustomName = (name: string) => setDatabaseEntry((entry) => entry.copy().setName(name))
   const setCustomScale = (axis: DatabaseEntryAxis, value: string) => {
     const normalizedValue = value.replace(/,/g, ".")
@@ -240,7 +253,7 @@ export function MePage() {
   }
 
   if (isLoading) return (
-    <main className="relative grid min-h-screen place-items-center px-5 py-8">
+    <main className="relative grid h-screen overflow-hidden place-items-center px-5 py-8">
       <section className="glass-card w-full max-w-[460px] p-6 text-center">
         <p className="text-sm font-semibold text-white/55">Loading profile...</p>
         <SiteCredit className="mt-5"/>
@@ -257,7 +270,7 @@ export function MePage() {
   const isDonor = canEditName || canEditSize
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4 py-8">
+    <main className="relative flex h-screen items-center justify-center overflow-hidden px-4 py-8">
       <section className="glass-card flex mx-auto w-full max-w-4xl flex-col px-8 py-7 text-center sm:px-9 sm:py-8">
 
         {/* Editor Header */ }
