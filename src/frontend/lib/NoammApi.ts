@@ -42,13 +42,13 @@ class NoammApi {
     if (! isJsonRecord(data)) return { authenticated: false }
 
     const apiKey = data.token as string
-    const expiresIn = data.expiresIn as number
+    const expiresIn = Number(data.expiresIn)
     const username = data.username as string
     const playerUuid = MinecraftApi.dashedUUID(data.userId as string)
     const hasName = data.hasName as boolean
     const hasSize = data.hasSize as boolean
 
-    if (! apiKey || ! playerUuid) return { authenticated: false }
+    if (! apiKey || ! playerUuid || ! Number.isFinite(expiresIn) || expiresIn <= 0) return { authenticated: false }
 
     return {
       authenticated: true,
@@ -77,7 +77,12 @@ class NoammApi {
         method: "GET", headers: { "Auth-Token": session.apiKey }
       })
     }
-    catch (e) {
+    catch (error) {
+      if (error instanceof NoammApiError && (error.status === 401 || error.status === 403)) {
+        AuthSession.clear()
+        throw error
+      }
+
       data = new DatabaseEntry()
     }
 

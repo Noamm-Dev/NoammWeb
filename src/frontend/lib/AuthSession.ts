@@ -6,6 +6,20 @@ interface AuthSessionData {
   player: ProfilePlayer
 }
 
+function isAuthSessionData(value: unknown): value is AuthSessionData {
+  if (! value || typeof value !== "object") return false
+
+  const data = value as Partial<AuthSessionData>
+  return typeof data.apiKey === "string" &&
+    data.apiKey.trim().length > 0 &&
+    typeof data.expiresAt === "number" &&
+    Number.isFinite(data.expiresAt) &&
+    typeof data.player === "object" &&
+    data.player !== null &&
+    typeof data.player.uuid === "string" &&
+    data.player.uuid.trim().length > 0
+}
+
 class AuthSession {
   private readonly STORAGE_KEY = "noamm_mcid_session"
 
@@ -14,9 +28,9 @@ class AuthSession {
     if (! rawValue) return null
 
     try {
-      const data = JSON.parse(rawValue) as AuthSessionData
+      const data = JSON.parse(rawValue) as unknown
 
-      if (data.expiresAt <= Date.now()) {
+      if (! isAuthSessionData(data) || data.expiresAt <= Date.now()) {
         this.clear()
         return null
       }
@@ -47,7 +61,8 @@ class AuthSession {
   timeRemaining(): number | null {
     const session = this.read()
     if (! session) return null
-    return Math.max(0, session.expiresAt - Date.now())
+    const remaining = session.expiresAt - Date.now()
+    return Number.isFinite(remaining) ? Math.max(0, remaining) : null
   }
 }
 

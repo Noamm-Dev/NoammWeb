@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from "react"
 import { Bold, Italic, Plus, Trash2 } from "lucide-react"
 import { generateOutput, rgbDefaults } from "@birdflop/rgbirdflop"
 import { getPlainMinecraftText } from "../lib/minecraft-text"
+import { MinecraftTextPreview } from "./MinecraftTextPreview"
 
 interface RGBirdflopGeneratorProps {
   disabled?: boolean
+  previewEmptyLabel?: string
+  previewValue?: string
   initialText?: string
   initialValue?: string
   onGenerate: (output: string) => void
@@ -31,6 +34,8 @@ type GeneratorState = {
 
 const DEFAULT_MAIN_COLORS: RGBColorStop[] = [ { hex: "#3E9FD3", pos: 0 } ]
 const DEFAULT_SHADOW_COLORS: RGBColorStop[] = [ { hex: "#1D4B66", pos: 0 } ]
+const COLOR_STOP_GRID_CLASSES = "rgbirdflop-color-grid grid max-h-[164px] grid-cols-1 gap-1.5 overflow-y-auto overscroll-contain pr-1 sm:grid-cols-2"
+const COLOR_STOP_ITEM_CLASSES = "flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-1.5 pr-2"
 
 const defaultGeneratorState = (text: string): GeneratorState => ({
   bold: false,
@@ -224,7 +229,14 @@ function Toggle({ checked, onChange, disabled, label }: { checked: boolean, onCh
   )
 }
 
-export function RGBirdflopGenerator({ disabled, initialText = "", initialValue, onGenerate }: RGBirdflopGeneratorProps) {
+export function RGBirdflopGenerator({
+  disabled,
+  initialText = "",
+  initialValue,
+  onGenerate,
+  previewEmptyLabel = initialText,
+  previewValue
+}: RGBirdflopGeneratorProps) {
   const initialState = useState(() => buildInitialState(initialValue, initialText))[0]
   const [ text, setText ] = useState(initialState.text)
   const [ colors, setColors ] = useState(initialState.colors)
@@ -297,7 +309,20 @@ export function RGBirdflopGenerator({ disabled, initialText = "", initialValue, 
   ])
 
   return (
-    <div className="mt-3 flex flex-col gap-3.5 rounded-2xl border border-white/10 bg-white/[0.035] p-3.5">
+    <div className="flex flex-col gap-3.5 rounded-2xl border border-white/10 bg-white/[0.035] p-3.5">
+      { previewValue !== undefined ? (
+        <div className="space-y-2">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">
+            Display Name Preview
+          </span>
+          <MinecraftTextPreview
+            className="minecraft-preview-centered min-h-[48px]"
+            emptyLabel={ previewEmptyLabel }
+            value={ previewValue }
+          />
+        </div>
+      ) : null }
+
       <div className="flex flex-col gap-3.5">
         <input
           className="w-full h-10 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-60"
@@ -326,9 +351,9 @@ export function RGBirdflopGenerator({ disabled, initialText = "", initialValue, 
             </button>
           </div>
           <MultiColorSlider colors={ colors } onChange={ setColors } disabled={ disabled }/>
-          <div className="space-y-1.5">
+          <div className={ COLOR_STOP_GRID_CLASSES }>
             { colors.map((color, idx) => (
-              <div key={ idx } className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-1.5 pr-2.5">
+              <div key={ idx } className={ COLOR_STOP_ITEM_CLASSES }>
                 <div className="relative w-7 h-7 shrink-0 rounded-lg overflow-hidden ring-1 ring-white/10">
                   <input
                     type="color"
@@ -338,7 +363,7 @@ export function RGBirdflopGenerator({ disabled, initialText = "", initialValue, 
                     className="absolute -inset-1 w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer bg-transparent border-0 p-0"
                   />
                 </div>
-                <span className="flex-1 text-sm text-white/75 font-mono tracking-wide">{ color.hex.toUpperCase() }</span>
+                <span className="min-w-0 flex-1 truncate font-mono text-sm tracking-wide text-white/75">{ color.hex.toUpperCase() }</span>
                 <span className="text-[11px] font-mono text-white/35 tabular-nums">{ color.pos }%</span>
                 <button
                   type="button"
@@ -370,9 +395,9 @@ export function RGBirdflopGenerator({ disabled, initialText = "", initialValue, 
                 </button>
               </div>
               <MultiColorSlider colors={ shadowColors } onChange={ setShadowColors } disabled={ disabled }/>
-              <div className="space-y-1.5">
+              <div className={ COLOR_STOP_GRID_CLASSES }>
                 { shadowColors.map((color, idx) => (
-                  <div key={ idx } className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-1.5 pr-2.5">
+                  <div key={ idx } className={ COLOR_STOP_ITEM_CLASSES }>
                     <div className="relative w-7 h-7 shrink-0 rounded-lg overflow-hidden ring-1 ring-white/10">
                       <input
                         type="color"
@@ -382,7 +407,7 @@ export function RGBirdflopGenerator({ disabled, initialText = "", initialValue, 
                         className="absolute -inset-1 w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer bg-transparent border-0 p-0"
                       />
                     </div>
-                    <span className="flex-1 text-sm text-white/75 font-mono tracking-wide">{ color.hex.toUpperCase() }</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-sm tracking-wide text-white/75">{ color.hex.toUpperCase() }</span>
                     <span className="text-[11px] font-mono text-white/35 tabular-nums">{ color.pos }%</span>
                     <button
                       type="button"

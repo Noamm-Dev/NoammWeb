@@ -1,6 +1,6 @@
 import { type FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { Navigate, useNavigate } from "react-router-dom"
-import { LogOut, Timer, Type } from "lucide-react"
+import { LogOut, RotateCcw, Timer, Type } from "lucide-react"
 import { ActionButton } from "../components/ActionButton"
 import { MinecraftTextPreview } from "../components/MinecraftTextPreview"
 import { SiteCredit } from "../components/SiteCredit"
@@ -77,9 +77,19 @@ export function MePage() {
     if (Number.isFinite(parsedValue)) setDatabaseEntry((entry) => entry.copy().setSize(axis, parsedValue))
   }
 
+  const resetCustomScale = () => {
+    setScaleInput({ x: "1.00", y: "1.00", z: "1.00" })
+    setDatabaseEntry((entry) => entry.copy().setSizeX(1).setSizeY(1).setSizeZ(1))
+  }
+
   const expireAuthSession = useCallback(() => {
     AuthSession.clear()
+    setPlayer(null)
+    setSessionSource(null)
     setSessionRemainingMs(null)
+    setIsSaving(false)
+    setSuccessMessage(null)
+    setErrorMessage(null)
     NotificationManager.notify({ message: "Your MC-ID session expired. Please log in again.", tone: "info" })
     navigate("/login", { replace: true })
   }, [ navigate ])
@@ -213,6 +223,8 @@ export function MePage() {
       setSuccessMessage("Profile saved.")
     }
     catch (error) {
+      if (error instanceof NoammApiError && (error.status === 401 || error.status === 403)) return expireAuthSession()
+
       setErrorMessage(getErrorMessage(error))
     }
     finally {
@@ -238,7 +250,9 @@ export function MePage() {
 
   if (! player) return <Navigate replace to="/login"/>
 
-  const skinUrl = `https://mc-heads.net/skin/${ encodeURIComponent(player.username ?? player.uuid) }`
+  const playerIdentity = player.username ?? player.uuid
+  const encodedPlayerIdentity = encodeURIComponent(playerIdentity)
+  const skinUrl = `https://mc-heads.net/skin/${ encodedPlayerIdentity }`
   const displayLabel = player.username ?? player.uuid
   const isDonor = canEditName || canEditSize
 
@@ -251,12 +265,12 @@ export function MePage() {
           <div className="flex items-center gap-4">
             <div className="relative">
               <img
-                src={ `https://mc-heads.net/avatar/${ encodeURIComponent(player.username ?? player.uuid) }/64` }
-                alt="Player Avatar"
-                className="w-14 h-14 rounded-full border border-white/10 bg-[#161619] object-cover"
+                src={ `https://mc-heads.net/head/${ encodedPlayerIdentity }/96` }
+                alt={ `${ displayLabel } Minecraft head` }
+                className="h-16 w-16 rounded-full border border-white/10 bg-[#111116] object-contain p-1.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+                style={ { imageRendering: "pixelated" } }
               />
-              {/* Perfectly centered Donor badge with matching blue glow */ }
-              <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 bg-[#70a7ff] text-[8px] font-extrabold tracking-widest text-white px-2 py-0.5 rounded shadow-[0_4px_10px_rgba(112,167,255,0.3)] uppercase select-none">
+              <span className="absolute -bottom-2 left-1/2 min-w-[58px] -translate-x-1/2 rounded-full bg-[#70a7ff] px-2.5 py-1 text-center text-[10px] font-extrabold uppercase leading-none tracking-wide text-white shadow-[0_6px_16px_rgba(112,167,255,0.34)] select-none">
                 { isDonor ? "Donor" : "User" }
               </span>
             </div>
@@ -301,25 +315,28 @@ export function MePage() {
             {/* LEFT COLUMN: Customizing Inputs */ }
             <div className="flex flex-col gap-5 text-left">
 
-              {/* Display Name Preview Segment */ }
-              <div className="flex flex-col gap-1.5">
-                <div className="rounded-xl px-4 py-3.5 min-h-[50px] flex items-center justify-start mt-0.5 shadow-inner">
-                  <MinecraftTextPreview
-                    className="minecraft-preview-centered whitespace-nowrap"
-                    emptyLabel={ displayLabel }
-                    value={ databaseEntry.getName() }
-                  />
-                </div>
-              </div>
-
               {/* Visual Gradient Generator First, Raw JSON Field Second */ }
               <div className="flex flex-col gap-4">
                 { canEditName && (
-                  <div>
-                    <RGBirdflopGenerator
-                      disabled={ isSaving }
-                      initialText={ displayLabel }
-                      onGenerate={ setCustomName }
+                  <RGBirdflopGenerator
+                    disabled={ isSaving }
+                    initialText={ displayLabel }
+                    initialValue={ databaseEntry.getName() }
+                    onGenerate={ setCustomName }
+                    previewEmptyLabel={ displayLabel }
+                    previewValue={ databaseEntry.getName() }
+                  />
+                ) }
+
+                { ! canEditName && (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3.5">
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">
+                      Display Name Preview
+                    </span>
+                    <MinecraftTextPreview
+                      className="minecraft-preview-centered min-h-[48px]"
+                      emptyLabel={ displayLabel }
+                      value={ databaseEntry.getName() }
                     />
                   </div>
                 ) }
@@ -342,21 +359,20 @@ export function MePage() {
 
               <div className="flex items-center justify-between">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Player Scale</label>
-                <button
-                  type="button"
-                  onClick={ () => {
-                    setCustomScale('x', '1.00')
-                    setCustomScale('y', '1.00')
-                    setCustomScale('z', '1.00')
-                  } }
-                  className="text-[10px] font-bold uppercase tracking-wider bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 px-3 py-1 rounded transition-colors"
+                <ActionButton
+                  aria-label="Reset scale"
+                  className="h-9 min-h-9 rounded-xl px-3 py-0 text-[10px] font-bold uppercase tracking-wider"
+                  disabled={ isSaving || ! canEditSize }
+                  icon={ <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/> }
+                  onClick={ resetCustomScale }
+                  variant="secondary"
                 >
                   Reset
-                </button>
+                </ActionButton>
               </div>
 
               {/* Transparent viewport container */ }
-              <div className="flex justify-center items-center h-[360px] relative overflow-hidden">
+              <div className="relative flex h-[340px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035]">
                 <Suspense fallback={
                   <div className="grid aspect-[3/4] h-[320px] w-full place-items-center rounded-xl bg-black/20 text-xs font-semibold text-zinc-500">
                     Loading skin...
@@ -369,11 +385,16 @@ export function MePage() {
               {/* Scale Tuning Sliders */ }
               <div className="flex flex-col gap-4 mt-2">
                 { SCALE_AXES.map((axis) => (
-                  <div className="flex items-center gap-4" key={ axis }>
-                    <span className="w-4 text-xs font-bold text-zinc-500">{ axis.toUpperCase() }</span>
+                  <div className="grid grid-cols-[1rem_minmax(0,1fr)_4.75rem] items-center gap-3" key={ axis }>
+                    <label
+                      className="text-xs font-bold text-zinc-500"
+                      htmlFor={ `me-scale-${ axis }` }
+                    >
+                      { axis.toUpperCase() }
+                    </label>
                     <input
                       aria-label={ `Size ${ axis.toUpperCase() } slider` }
-                      className="flex-1 accent-[#70a7ff] h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                      className="scale-slider"
                       disabled={ isSaving || ! canEditSize }
                       max={ SLIDER_CONFIG.max }
                       min={ SLIDER_CONFIG.min }
@@ -382,9 +403,16 @@ export function MePage() {
                       type="range"
                       value={ getScaleSliderValue(scaleInput[axis], databaseEntry.getSize(axis) ?? DEFAULT_SCALE[axis]) }
                     />
-                    <span className="w-10 text-right text-sm font-mono font-bold text-white">
-                      { Number(scaleInput[axis] || 0).toFixed(2) }
-                    </span>
+                    <input
+                      aria-label={ `Exact size ${ axis.toUpperCase() }` }
+                      className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.05] px-2 text-center font-mono text-sm font-bold text-white outline-none transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={ isSaving || ! canEditSize }
+                      id={ `me-scale-${ axis }` }
+                      inputMode="decimal"
+                      onChange={ (e) => setCustomScale(axis, e.target.value) }
+                      type="text"
+                      value={ scaleInput[axis] }
+                    />
                   </div>
                 )) }
               </div>
