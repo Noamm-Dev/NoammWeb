@@ -9,6 +9,7 @@ import { TextField } from "../components/TextField"
 import AuthSession from "../lib/AuthSession"
 import NoammApi, { NoammApiError } from "../lib/NoammApi"
 import NotificationManager from "../lib/NotificationManager"
+import { getPlainMinecraftText } from "../lib/minecraft-text"
 import type { ProfilePlayer, Scale } from "../types/profile"
 import { MinecraftSkinViewer } from "../components/MinecraftSkinViewer"
 import { DEFAULT_SCALE, SCALE_AXES, SLIDER_CONFIG } from "../content/database"
@@ -39,11 +40,35 @@ const parseScaleInput = (value: string) => {
   return Number(normalizedValue)
 }
 
+const NAME_INVALID_CHARACTERS_REGEX = /[^A-Za-z0-9_]/g
+const BANNED_NAME_CHARACTERS = new Set([ '卐', '卍' ])
+const SCALE_MIN_ABSOLUTE = 0.09
+
+const scaleValuesClose = (a: number, b: number) => Math.abs(a - b) < 0.001
+const getCustomNameError = (name: string, username: string | null): string | null => {
+  const plainText = getPlainMinecraftText(name)
+  if (Array.from(plainText).some((character) => BANNED_NAME_CHARACTERS.has(character))) {
+    return "Your custom name contains a forbidden character."
+  }
+
+  if (! username) return null
+
+  const cleanName = plainText.replace(NAME_INVALID_CHARACTERS_REGEX, "").trim()
+  if (cleanName.toLowerCase() !== username.toLowerCase()) {
+    return "Your custom name must match Minecraft username. Only symbols/unicodes are supported before/after it."
+  }
+
+  return null
+}
+
 const validateScale = (scale: Scale): ParsedScale => {
   for (const value of Object.values(scale)) {
     if (! Number.isFinite(value)) return { error: "Scale values must be valid numbers.", value: null }
     if (value < SLIDER_CONFIG.min || value > SLIDER_CONFIG.max) return {
       error: `Scale values must stay between ${ SLIDER_CONFIG.min } and ${ SLIDER_CONFIG.max }.`, value: null
+    }
+    if (Math.abs(value) <= SCALE_MIN_ABSOLUTE) return {
+      error: `Scale values must be at least ${ SCALE_MIN_ABSOLUTE } away from zero.`, value: null
     }
   }
   return { error: null, value: scale }
@@ -81,7 +106,8 @@ export function MePage() {
     }
   }, [])
 
-  const setCustomName = (name: string) => setDatabaseEntry((entry) => entry.copy().setName(name))
+  const handleGenerateName = useCallback((output: string) => setDatabaseEntry((entry) => entry.copy().setName(output)), [])
+
   const setCustomScale = (axis: DatabaseEntryAxis, value: string) => {
     const normalizedValue = value.replace(/,/g, ".")
     setScaleInput((currentState) => ({ ...currentState, [axis]: normalizedValue }))
@@ -186,39 +212,23 @@ export function MePage() {
   const canEditName = player?.hasName !== false
   const canEditSize = player?.hasSize !== false
   const serverBacked = sessionSource === "server"
-  const hasDisplayNameChanged = player !== null && customName !== player.displayName
+  const hasNameChanged = player !== null && customName !== player.displayName
   const hasScaleChanged = player !== null && parsedScale.error === null && ! scalesEqual(parsedScale.value, player.scale)
-  const hasChanges = hasDisplayNameChanged || hasScaleChanged
+  const hasChanges = hasNameChanged || hasScaleChanged
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (! player) return
-    if (! serverBacked) {
-      setErrorMessage("Profile saving needs an active MC-ID session.")
-      setSuccessMessage(null)
-      return
-    }
-
+    if (! serverBacked) return NotificationManager.notify({ message: "Profile saving needs an active MC-ID session.", tone: "error" })
     if (! AuthSession.read()) return expireAuthSession()
-
-    if (parsedScale.value === null) {
-      setErrorMessage(parsedScale.error)
-      setSuccessMessage(null)
-      return
-    }
-
+    if (parsedScale.value === null) return NotificationManager.notify({ message: parsedScale.error, tone: "error" })
     if (! hasChanges) return
 
-    if (! canEditName && hasDisplayNameChanged) {
-      setErrorMessage("You do not have permission to edit your custom name.")
-      setSuccessMessage(null)
-      return
-    }
-
-    if (! canEditSize && hasScaleChanged) {
-      setErrorMessage("You do not have permission to edit your size.")
-      setSuccessMessage(null)
-      return
+    if (! canEditName && hasNameChanged) return NotificationManager.notify({ message: "You do not have permission to edit your custom name.", tone: "error" })
+    if (! canEditSize && hasScaleChanged) return NotificationManager.notify({ message: "You do not have permission to edit your size.", tone: "error" })
+    if (customName !== null) {
+      const nameError = getCustomNameError(customName, player.username)
+      if (nameError) return NotificationManager.notify({ message: nameError, tone: "error" })
     }
 
     setIsSaving(true)
@@ -233,7 +243,20 @@ export function MePage() {
       setScaleInput(entryToScaleInput(response))
       setPlayer(updatedPlayer)
       AuthSession.updatePlayer(updatedPlayer)
-      setSuccessMessage("Profile saved.")
+
+      const rejectedMessages: string[] = []
+      if (getPlainMinecraftText(response.getName()) !== getPlainMinecraftText(entryToSave.getName())) {
+        rejectedMessages.push("Your custom name was rejected by the server. It must match your current Minecraft username.")
+      }
+
+      const submittedScale = entryToSave.toScale()
+      const savedScale = response.toScale()
+      if (! scaleValuesClose(savedScale.x, submittedScale.x) || ! scaleValuesClose(savedScale.y, submittedScale.y) || ! scaleValuesClose(savedScale.z, submittedScale.z)) {
+        rejectedMessages.push("Your scale was rejected by the server.")
+      }
+
+      if (rejectedMessages.length > 0) setErrorMessage(rejectedMessages.join(" "))
+      else setSuccessMessage("Profile saved.")
     }
     catch (error) {
       if (error instanceof NoammApiError && (error.status === 401 || error.status === 403)) return expireAuthSession()
@@ -328,14 +351,14 @@ export function MePage() {
             {/* LEFT COLUMN: Customizing Inputs */ }
             <div className="flex flex-col gap-5 text-left">
 
-              {/* Visual Gradient Generator First, Raw JSON Field Second */ }
+              {/* Visual Gradient Generator */ }
               <div className="flex flex-col gap-4">
                 { canEditName && (
                   <RGBirdflopGenerator
                     disabled={ isSaving }
                     initialText={ displayLabel }
                     initialValue={ databaseEntry.getName() }
-                    onGenerate={ setCustomName }
+                    onGenerate={ handleGenerateName }
                     previewEmptyLabel={ displayLabel }
                     previewValue={ databaseEntry.getName() }
                   />
@@ -360,7 +383,7 @@ export function MePage() {
                   icon={ <Type className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true"/> }
                   label="Custom Name"
                   multiline={ false }
-                  onChange={ event => setCustomName(event.target.value) }
+                  onChange={ event => handleGenerateName(event.target.value) }
                   placeholder={ `{"text":"${ displayLabel }","color":"#4498DB"}` }
                   value={ databaseEntry.getName() }
                 />
