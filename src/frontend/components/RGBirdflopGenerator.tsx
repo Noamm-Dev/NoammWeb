@@ -58,6 +58,16 @@ const normalizeHexColor = (value: unknown, fallback: string | null) => {
   return fallback
 }
 
+const shadowColorToHex = (value: unknown, fallback: string | null): string | null => {
+  if (Array.isArray(value) && value.length >= 3) {
+    const toHex = (c: unknown) => Math.round((Number(c) || 0) * 255).toString(16).padStart(2, "0")
+    return `#${ toHex(value[0]) }${ toHex(value[1]) }${ toHex(value[2]) }`.toUpperCase()
+  }
+  if (value === null || value === "") return null
+  if (typeof value === "string" && value.trim().toLowerCase() === "reset") return null
+  return normalizeHexColor(value, fallback)
+}
+
 const collectStoredRuns = (node: unknown, inherited: Omit<StoredRun, "text"> = {
   bold: false,
   color: null,
@@ -84,7 +94,7 @@ const collectStoredRuns = (node: unknown, inherited: Omit<StoredRun, "text"> = {
     bold: record.bold !== undefined ? Boolean(record.bold) : inherited.bold,
     color: normalizeHexColor(record.color, inherited.color),
     italic: record.italic !== undefined ? Boolean(record.italic) : inherited.italic,
-    shadowColor: normalizeHexColor(record.shadow_color ?? record.shadowColor, inherited.shadowColor)
+    shadowColor: shadowColorToHex(record.shadow_color ?? record.shadowColor, inherited.shadowColor)
   }
 
   if (record.text !== undefined && record.text !== null) {
@@ -139,7 +149,7 @@ const buildInitialState = (initialValue: string | undefined, initialText: string
     return {
       bold: runs.some((run) => run.bold),
       colors: buildColorStops(runs, "color", DEFAULT_MAIN_COLORS),
-      enableShadow: shadowColors.some((stop) => stop.hex !== DEFAULT_SHADOW_COLORS[0].hex),
+      enableShadow: runs.some((run) => run.shadowColor !== null),
       italic: runs.some((run) => run.italic),
       shadowColors,
       text: plainText || fallbackText
