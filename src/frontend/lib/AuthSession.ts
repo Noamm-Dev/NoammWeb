@@ -24,7 +24,7 @@ class AuthSession {
   private readonly STORAGE_KEY = "noamm_mcid_session"
 
   read(): AuthSessionData | null {
-    const rawValue = window.localStorage.getItem(this.STORAGE_KEY)
+    const rawValue = window.sessionStorage.getItem(this.STORAGE_KEY)
     if (! rawValue) return null
 
     try {
@@ -44,12 +44,12 @@ class AuthSession {
   }
 
   save(session: AuthSessionData): AuthSessionData {
-    window.localStorage.setItem(this.STORAGE_KEY, JSON.stringify(session))
+    window.sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(session))
     return session
   }
 
   clear() {
-    window.localStorage.removeItem(this.STORAGE_KEY)
+    window.sessionStorage.removeItem(this.STORAGE_KEY)
   }
 
   updatePlayer(player: ProfilePlayer): AuthSessionData | null {
