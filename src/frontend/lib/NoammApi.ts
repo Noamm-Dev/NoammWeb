@@ -113,9 +113,24 @@ class NoammApi {
     return DatabaseEntry.fromUnknown(data)
   }
 
-  async getDatabase(authToken: string) {
+  async adminLogin(password: string) {
+    await this.requestText("/database/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ password })
+    })
+  }
+
+  async adminLogout() {
+    await this.requestText("/database/admin/logout", {
+      method: "POST", credentials: "include"
+    })
+  }
+
+  async getDatabase() {
     const database = await this.request<DatabaseData>("/database/admin", {
-      method: "GET", headers: { Authorization: authToken }
+      method: "GET", credentials: "include"
     })
 
     database.entries = DatabaseEntry.entriesFromUnknown(database.entries)
@@ -123,59 +138,54 @@ class NoammApi {
     return database
   }
 
-  async getOwner(uuid: string, authToken: string) {
+  async getOwner(uuid: string) {
     const data = await this.request(`/database/admin/owner/${ encodeURIComponent(uuid) }`, {
-      method: "GET",
-      headers: { "Authorization": authToken }
+      method: "GET", credentials: "include"
     })
 
     return databaseOwnerFromUnknown(data)
   }
 
-  async saveEntry(uuid: string, authToken: string, entry: DatabaseEntry) {
+  async saveEntry(uuid: string, entry: DatabaseEntry) {
     await this.requestText(`/database/admin/entry/${ encodeURIComponent(uuid) }`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": authToken
-      },
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify(entry)
     })
   }
 
-  async saveOwner(uuid: string, authToken: string, owner: DatabaseOwner) {
+  async saveOwner(uuid: string, owner: DatabaseOwner) {
     await this.requestText(`/database/admin/owner/${ encodeURIComponent(uuid) }`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": authToken
-      },
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify(owner)
     })
   }
 
-  async deleteOwner(uuid: string, authToken: string) {
+  async deleteOwner(uuid: string) {
     await this.requestText(`/database/admin/owner/${ encodeURIComponent(uuid) }`, {
-      method: "DELETE", headers: { "Authorization": authToken }
+      method: "DELETE", credentials: "include"
     })
   }
 
-  async deleteEntry(uuid: string, authToken: string) {
+  async deleteEntry(uuid: string) {
     await this.requestText(`/database/admin/entry/${ encodeURIComponent(uuid) }`, {
-      method: "DELETE", headers: { "Authorization": authToken }
+      method: "DELETE", credentials: "include"
     })
   }
 
-  async clearRateLimit(uuid: string, authToken: string) {
+  async clearRateLimit(uuid: string) {
     await this.requestText(`/database/admin/ratelimit/${ encodeURIComponent(uuid) }`, {
-      method: "DELETE", headers: { "Authorization": authToken }
+      method: "DELETE", credentials: "include"
     })
   }
 
-  async runUpdate(authToken: string, onMessage: (message: string) => void, signal?: AbortSignal) {
+  async runUpdate(onMessage: (message: string) => void, signal?: AbortSignal) {
     const response = await fetch(`${ this.baseURL }/database/admin/update`, {
       method: "GET",
-      headers: { "Authorization": authToken },
+      credentials: "include",
       signal
     })
 
@@ -188,7 +198,7 @@ class NoammApi {
     const decoder = new TextDecoder()
     let buffer = ""
 
-    for (;;) {
+    for (; ;) {
       const { done, value } = await reader.read()
       if (done) break
       buffer += decoder.decode(value, { stream: true })
@@ -207,7 +217,7 @@ class NoammApi {
     try {
       return JSON.parse(text) as T
     }
-    catch (error) {
+    catch {
       throw new NoammApiError(0, "The API response is invalid.", text)
     }
   }

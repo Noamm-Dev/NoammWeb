@@ -13,7 +13,6 @@ import MinecraftApi, { type MinecraftProfile } from "../lib/MinecraftApi"
 import { getPlainMinecraftText } from "../lib/minecraft-text"
 import NotificationManager from "../lib/NotificationManager"
 import DatabaseEntry, { type DatabaseOwner } from "../types/DatabaseEntry"
-import { STORAGE_KEY } from '../content/database'
 import { getErrorMessage } from '../utils.ts'
 import NoammApi, { NoammApiError } from '../lib/NoammApi.ts'
 
@@ -99,12 +98,12 @@ const DatabaseMenuContent = ({ isLoading, onLogout, onRefresh, stats }: Database
 )
 
 export function DatabaseAdminPage() {
-  const [ authToken, setAuthToken ] = useState(() => window.localStorage.getItem(STORAGE_KEY) || "")
+  const [ isAuthed, setIsAuthed ] = useState(false)
   const [ password, setPassword ] = useState("")
   const [ entries, setEntries ] = useState<Record<string, DatabaseEntry>>({})
   const [ owners, setOwners ] = useState<Record<string, DatabaseOwner>>({})
   const [ searchTerm, setSearchTerm ] = useState("")
-  const [ isLoading, setIsLoading ] = useState(Boolean(authToken))
+  const [ isLoading, setIsLoading ] = useState(true)
   const [ isSavingEntry, setIsSavingEntry ] = useState(false)
   const [ isSavingOwner, setIsSavingOwner ] = useState(false)
   const [ deletingUuid, setDeletingUuid ] = useState<string | null>(null)
@@ -146,8 +145,7 @@ export function DatabaseAdminPage() {
   }, [])
 
   const clearSession = useCallback(() => {
-    window.localStorage.removeItem(STORAGE_KEY)
-    setAuthToken("")
+    setIsAuthed(false)
     setEntries({})
     setOwners({})
     setIsAddChoiceOpen(false)
@@ -155,35 +153,44 @@ export function DatabaseAdminPage() {
     setOwnerDialog(null)
     setOwnerDeleteDialog(null)
     setOwnerDeleteConfirmStep(0)
+    void NoammApi.adminLogout().catch(() => {})
   }, [])
 
-  const loadEntries = useCallback(async (token: string, options: { showLoading?: boolean } = {}) => {
+  const loadEntries = useCallback(async (options: { showLoading?: boolean, silent?: boolean } = {}) => {
       if (options.showLoading ?? true) setIsLoading(true)
 
       try {
-        const database = await NoammApi.getDatabase(token)
+        const database = await NoammApi.getDatabase()
         setEntries(database.entries)
         setOwners(database.owners)
+        setIsAuthed(true)
         setErrorMessage(null)
         return true
       }
       catch (error) {
-        if (error instanceof NoammApiError && error.status === 401) clearSession()
-        setErrorMessage(getErrorMessage(error))
+        if (error instanceof NoammApiError && error.status === 401) {
+          setIsAuthed(false)
+          setEntries({})
+          setOwners({})
+          setEntryDialog(null)
+          setOwnerDialog(null)
+          setOwnerDeleteDialog(null)
+          setOwnerDeleteConfirmStep(0)
+        }
+        if (! options.silent) setErrorMessage(getErrorMessage(error))
         return false
       }
       finally {
         setIsLoading(false)
       }
     },
-    [ clearSession ]
+    []
   )
 
   useEffect(() => {
-    if (! authToken) return
-    const timeoutId = window.setTimeout(() => void loadEntries(authToken, { showLoading: true }), 0)
+    const timeoutId = window.setTimeout(() => void loadEntries({ silent: true }), 0)
     return () => window.clearTimeout(timeoutId)
-  }, [ authToken, loadEntries ])
+  }, [ loadEntries ])
 
   useEffect(() => NotificationManager.notify({ message: errorMessage, tone: "error" }), [ errorMessage ])
   useEffect(() => NotificationManager.notify({ message: successMessage, tone: "success" }), [ successMessage ])
@@ -324,24 +331,29 @@ export function DatabaseAdminPage() {
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    const nextToken = password.trim()
-    if (! nextToken) return setErrorMessage("The admin password is required.")
+    const nextPassword = password.trim()
+    if (! nextPassword) return setErrorMessage("The admin password is required.")
 
+    setErrorMessage(null)
     setSuccessMessage(null)
-    const isLoaded = await loadEntries(nextToken, { showLoading: true })
-    if (! isLoaded) return
 
-    window.localStorage.setItem(STORAGE_KEY, nextToken)
-    setAuthToken(nextToken)
-    setPassword("")
-    setSuccessMessage("Admin session is active.")
+    try {
+      await NoammApi.adminLogin(nextPassword)
+      await loadEntries({ showLoading: false })
+      setPassword("")
+      setSuccessMessage("Admin session is active.")
+    }
+    catch (error) {
+      setIsLoading(false)
+      setErrorMessage(getErrorMessage(error))
+    }
   }
 
   const handleRefresh = useCallback(async () => {
     setSuccessMessage(null)
-    const isLoaded = await loadEntries(authToken, { showLoading: true })
+    const isLoaded = await loadEntries({ showLoading: true })
     if (isLoaded) setSuccessMessage("Database refreshed.")
-  }, [ authToken, loadEntries ])
+  }, [ loadEntries ])
 
   const handleLogout = useCallback(() => {
     clearSession()
@@ -385,7 +397,7 @@ export function DatabaseAdminPage() {
       setSuccessMessage(null)
 
       try {
-        await NoammApi.saveEntry(uuid, authToken, entry)
+        await NoammApi.saveEntry(uuid, entry)
 
         setEntries((currentEntries) => ({ ...currentEntries, [uuid]: entry }))
         setEntryDialog(null)
@@ -409,7 +421,7 @@ export function DatabaseAdminPage() {
         setIsSavingEntry(false)
       }
     },
-    [ authToken, clearSession ]
+    [ clearSession ]
   )
 
   const handleSaveOwner = useCallback(async (payload: DatabaseOwnerPayload) => {
@@ -423,7 +435,7 @@ export function DatabaseAdminPage() {
         hasSize: payload.hasSize
       }
 
-      await NoammApi.saveOwner(payload.uuid, authToken, owner)
+      await NoammApi.saveOwner(payload.uuid, owner)
 
       setOwners((currentOwners) => ({ ...currentOwners, [payload.uuid]: owner }))
       setOwnerDialog(null)
@@ -446,7 +458,7 @@ export function DatabaseAdminPage() {
     finally {
       setIsSavingOwner(false)
     }
-  }, [ authToken, clearSession ])
+  }, [ clearSession ])
 
   const handleSaveEntryOwnerSettings = useCallback(async (uuid: string, owner: DatabaseOwner) => {
     setIsSavingOwner(true)
@@ -454,7 +466,7 @@ export function DatabaseAdminPage() {
     setSuccessMessage(null)
 
     try {
-      await NoammApi.saveOwner(uuid, authToken, owner)
+      await NoammApi.saveOwner(uuid, owner)
 
       setOwners((currentOwners) => ({ ...currentOwners, [uuid]: owner }))
       setErrorMessage(null)
@@ -476,7 +488,7 @@ export function DatabaseAdminPage() {
     finally {
       setIsSavingOwner(false)
     }
-  }, [ authToken, clearSession ])
+  }, [ clearSession ])
 
   const handleDeleteEntryFromSettings = useCallback(async (uuid: string) => {
     setDeletingUuid(uuid)
@@ -484,7 +496,7 @@ export function DatabaseAdminPage() {
     setSuccessMessage(null)
 
     try {
-      await NoammApi.deleteEntry(uuid, authToken)
+      await NoammApi.deleteEntry(uuid)
 
       setEntries((currentEntries) => {
         const nextEntries = { ...currentEntries }
@@ -510,7 +522,7 @@ export function DatabaseAdminPage() {
     finally {
       setDeletingUuid(null)
     }
-  }, [ authToken, clearSession ])
+  }, [ clearSession ])
 
   const handleDeleteOwner = useCallback((uuid: string) => {
     const owner = owners[uuid]
@@ -542,7 +554,7 @@ export function DatabaseAdminPage() {
     setSuccessMessage(null)
 
     try {
-      await NoammApi.deleteOwner(uuid, authToken)
+      await NoammApi.deleteOwner(uuid)
 
       setOwners((currentOwners) => {
         const nextOwners = { ...currentOwners }
@@ -561,7 +573,7 @@ export function DatabaseAdminPage() {
     finally {
       setDeletingOwnerUuid(null)
     }
-  }, [ authToken, clearSession, ownerDeleteConfirmStep, ownerDeleteDialog ])
+  }, [ clearSession, ownerDeleteConfirmStep, ownerDeleteDialog ])
 
   const handleClearRateLimit = useCallback(async (uuid: string) => {
     if (clearingRateLimitUuid) return
@@ -570,7 +582,7 @@ export function DatabaseAdminPage() {
     setSuccessMessage(null)
 
     try {
-      await NoammApi.clearRateLimit(uuid, authToken)
+      await NoammApi.clearRateLimit(uuid)
       setSuccessMessage("Rate limit cleared.")
     }
     catch (error) {
@@ -580,7 +592,7 @@ export function DatabaseAdminPage() {
     finally {
       setClearingRateLimitUuid(null)
     }
-  }, [ authToken, clearSession, clearingRateLimitUuid ])
+  }, [ clearSession, clearingRateLimitUuid ])
 
   const handleRunUpdate = useCallback(async () => {
     if (isRunningUpdate) return
@@ -593,7 +605,7 @@ export function DatabaseAdminPage() {
     updateAbortRef.current = abortController
 
     try {
-      await NoammApi.runUpdate(authToken, (message) => {
+      await NoammApi.runUpdate((message) => {
         setUpdateLog((currentLog) => [ ...currentLog, message ])
       }, abortController.signal)
       setSuccessMessage("Database update finished.")
@@ -611,13 +623,13 @@ export function DatabaseAdminPage() {
       updateAbortRef.current = null
       setIsRunningUpdate(false)
     }
-  }, [ authToken, clearSession, isRunningUpdate ])
+  }, [ clearSession, isRunningUpdate ])
 
   const handleStopUpdate = useCallback(() => {
     updateAbortRef.current?.abort()
   }, [])
 
-  if (! authToken) return (
+  if (! isAuthed) return (
     <main className="relative grid min-h-screen place-items-center px-5 py-8">
       <section className="glass-card w-full max-w-[460px] p-6 sm:p-8">
         <div className="mb-7 text-center">
