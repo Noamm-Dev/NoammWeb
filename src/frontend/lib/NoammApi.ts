@@ -166,6 +166,41 @@ class NoammApi {
     })
   }
 
+  async clearRateLimit(uuid: string, authToken: string) {
+    await this.requestText(`/database/admin/ratelimit/${ encodeURIComponent(uuid) }`, {
+      method: "DELETE", headers: { "Authorization": authToken }
+    })
+  }
+
+  async runUpdate(authToken: string, onMessage: (message: string) => void, signal?: AbortSignal) {
+    const response = await fetch(`${ this.baseURL }/database/admin/update`, {
+      method: "GET",
+      headers: { "Authorization": authToken },
+      signal
+    })
+
+    if (! response.ok || ! response.body) {
+      const text = await response.text()
+      throw new NoammApiError(response.status, text, response)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ""
+
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      const lines = buffer.split("\n")
+      buffer = lines.pop() ?? ""
+      for (const line of lines) onMessage(line)
+    }
+
+    if (buffer) onMessage(buffer)
+  }
+
   private async request<T>(path: string, init: RequestInit): Promise<T> {
     const text = await this.requestText(path, init)
 

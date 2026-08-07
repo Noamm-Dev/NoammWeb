@@ -1,4 +1,4 @@
-import { Save, Settings, ShieldCheck, Trash2, X } from "lucide-react"
+import { Save, Settings, ShieldCheck, TimerReset, Trash2, X } from "lucide-react"
 import { type CSSProperties, type FormEvent, type KeyboardEvent, memo, type MouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { ActionButton } from "./ActionButton"
@@ -9,10 +9,12 @@ import DatabaseEntry, { type DatabaseOwner } from "../types/DatabaseEntry"
 interface DatabaseEntryRowProps {
   actionsEnabled?: boolean
   entry: DatabaseEntry
+  isClearingRateLimit?: boolean
   isDeletingEntry?: boolean
   isSavingOwner?: boolean
   owner?: DatabaseOwner
   uuid: string
+  onClearRateLimit?: (uuid: string) => void
   onDeleteEntry?: (uuid: string) => Promise<string | null>
   onEdit?: (uuid: string, entry: DatabaseEntry) => void
   onSaveOwner?: (uuid: string, owner: DatabaseOwner) => Promise<string | null>
@@ -59,8 +61,10 @@ function isInteractiveTarget(target: EventTarget | null) {
 export const DatabaseEntryRow = memo(({
   actionsEnabled = true,
   entry,
+  isClearingRateLimit = false,
   isDeletingEntry = false,
   isSavingOwner = false,
+  onClearRateLimit,
   onDeleteEntry,
   onEdit,
   onSaveOwner,
@@ -70,6 +74,7 @@ export const DatabaseEntryRow = memo(({
   const sizeTags = useMemo(() => buildSizeTags(entry), [ entry ])
   const canEdit = actionsEnabled && Boolean(onEdit)
   const canConfigureOwner = actionsEnabled && Boolean(onDeleteEntry && onSaveOwner)
+  const canResetRateLimit = actionsEnabled && Boolean(onClearRateLimit)
   const isBusy = isDeletingEntry || isSavingOwner
   const settingsMenuRef = useRef<HTMLDivElement | null>(null)
   const settingsPanelRef = useRef<HTMLDivElement | null>(null)
@@ -248,6 +253,12 @@ export const DatabaseEntryRow = memo(({
     setDeleteConfirmStep(0)
   }
 
+  function handleResetRateLimit(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    if (! canResetRateLimit || isBusy) return
+    onClearRateLimit?.(uuid)
+  }
+
   const settingsMenuStyle = settingsMenuPosition ? {
     left: settingsMenuPosition.left,
     maxHeight: settingsMenuPosition.maxHeight,
@@ -373,6 +384,17 @@ export const DatabaseEntryRow = memo(({
               { isSavingOwner ? "Saving..." : "Save owner" }
             </ActionButton>
           </form>
+
+          { canResetRateLimit ? (
+            <ActionButton
+              className="w-full"
+              disabled={ isBusy || isClearingRateLimit }
+              icon={ <TimerReset className="h-4 w-4" aria-hidden="true"/> }
+              onClick={ handleResetRateLimit }
+            >
+              { isClearingRateLimit ? "Resetting..." : "Reset rate limit" }
+            </ActionButton>
+          ) : null }
 
           <ActionButton
             className="w-full"

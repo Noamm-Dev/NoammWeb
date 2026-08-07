@@ -1,17 +1,19 @@
 import { type KeyboardEvent, memo, type MouseEvent } from "react"
-import { Crown, Sparkles, Trash2 } from "lucide-react"
+import { Crown, Sparkles, TimerReset, Trash2 } from "lucide-react"
 import { ActionButton } from "./ActionButton"
 import type { DatabaseOwner } from "../types/DatabaseEntry"
 
 interface DatabaseOwnerOnlyRowProps {
+  isClearingRateLimit?: boolean
   isDeleting?: boolean
+  onClearRateLimit: (uuid: string) => void
   onDelete: (uuid: string) => void
   onEditEntry: (uuid: string) => void
   owner: DatabaseOwner
   uuid: string
 }
 
-export const DatabaseOwnerOnlyRow = memo(({ isDeleting, onDelete, onEditEntry, owner, uuid }: DatabaseOwnerOnlyRowProps) => {
+export const DatabaseOwnerOnlyRow = memo(({ isClearingRateLimit, isDeleting, onClearRateLimit, onDelete, onEditEntry, owner, uuid }: DatabaseOwnerOnlyRowProps) => {
   const handleEdit = () => onEditEntry(uuid)
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
@@ -23,6 +25,11 @@ export const DatabaseOwnerOnlyRow = memo(({ isDeleting, onDelete, onEditEntry, o
   function handleDelete(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
     onDelete(uuid)
+  }
+
+  function handleClearRateLimit(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    onClearRateLimit(uuid)
   }
 
   return (
@@ -46,6 +53,13 @@ export const DatabaseOwnerOnlyRow = memo(({ isDeleting, onDelete, onEditEntry, o
           <div className="grid h-10 w-10 place-items-center rounded-xl border border-cyan-200/20 bg-cyan-300/10 text-cyan-100">
             <Crown className="h-5 w-5" aria-hidden="true"/>
           </div>
+          <ActionButton
+            aria-label="Reset rate limit"
+            className="h-8 min-h-8 w-10 rounded-lg px-0 py-0"
+            disabled={ isClearingRateLimit }
+            icon={ <TimerReset className="h-4 w-4" aria-hidden="true"/> }
+            onClick={ handleClearRateLimit }
+          />
           <ActionButton
             aria-label="Delete owner"
             className="h-8 min-h-8 w-10 rounded-lg px-0 py-0"

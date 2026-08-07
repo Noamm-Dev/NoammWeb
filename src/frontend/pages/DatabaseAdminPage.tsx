@@ -1,4 +1,4 @@
-import { Database, KeyRound, LogOut, Menu, Plus, RefreshCw, Search, SlidersHorizontal, Trash2, X } from "lucide-react"
+import { Database, KeyRound, LogOut, Menu, Plus, RefreshCw, Search, Square, Trash2, X } from "lucide-react"
 import { type FormEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import noammHelm from "../assets/noamm-helm.png"
 import { ActionButton } from "../components/ActionButton"
@@ -20,18 +20,12 @@ import NoammApi, { NoammApiError } from '../lib/NoammApi.ts'
 type EntryDialogState = | { mode: "add", uuid?: string } | { entry: DatabaseEntry, mode: "edit", uuid: string }
 type OwnerDeleteDialogState = { owner: DatabaseOwner, uuid: string }
 type OwnerDialogState = { owner?: DatabaseOwner, uuid?: string, uuidReadOnly?: boolean }
-type EntryFilter = "all" | "named" | "scaled"
 
 type MinecraftLookupState =
   | { query: string; status: "loading" }
   | { profile: MinecraftProfile, query: string, status: "resolved" }
   | { query: string, status: "not_found" }
   | { message: string, query: string; status: "error" }
-
-interface FilterTab {
-  label: string
-  value: EntryFilter
-}
 
 const DELETE_CONFIRM_LABELS = [
   "Are you sure?",
@@ -110,7 +104,6 @@ export function DatabaseAdminPage() {
   const [ entries, setEntries ] = useState<Record<string, DatabaseEntry>>({})
   const [ owners, setOwners ] = useState<Record<string, DatabaseOwner>>({})
   const [ searchTerm, setSearchTerm ] = useState("")
-  const [ entryFilter, setEntryFilter ] = useState<EntryFilter>("all")
   const [ isLoading, setIsLoading ] = useState(Boolean(authToken))
   const [ isSavingEntry, setIsSavingEntry ] = useState(false)
   const [ isSavingOwner, setIsSavingOwner ] = useState(false)
@@ -121,14 +114,17 @@ export function DatabaseAdminPage() {
   const [ ownerDeleteDialog, setOwnerDeleteDialog ] = useState<OwnerDeleteDialogState | null>(null)
   const [ entryDialog, setEntryDialog ] = useState<EntryDialogState | null>(null)
   const [ ownerDialog, setOwnerDialog ] = useState<OwnerDialogState | null>(null)
-  const [ isFilterMenuOpen, setIsFilterMenuOpen ] = useState(false)
   const [ isMobileMenuOpen, setIsMobileMenuOpen ] = useState(false)
   const [ minecraftLookup, setMinecraftLookup ] = useState<MinecraftLookupState | null>(null)
+  const [ isRunningUpdate, setIsRunningUpdate ] = useState(false)
+  const [ updateLog, setUpdateLog ] = useState<string[]>([])
+  const [ clearingRateLimitUuid, setClearingRateLimitUuid ] = useState<string | null>(null)
   const [ errorMessage, setErrorMessage ] = useState<string | null>(null)
   const [ successMessage, setSuccessMessage ] = useState<string | null>(null)
 
   const deferredSearchTerm = useDeferredValue(searchTerm)
-  const filterMenuRef = useRef<HTMLDivElement | null>(null)
+  const updateAbortRef = useRef<AbortController | null>(null)
+  const updateLogRef = useRef<HTMLDivElement | null>(null)
   const normalizedSearchTerm = deferredSearchTerm.trim().toLowerCase()
 
   useEffect(() => {
@@ -193,6 +189,14 @@ export function DatabaseAdminPage() {
   useEffect(() => NotificationManager.notify({ message: successMessage, tone: "success" }), [ successMessage ])
 
   useEffect(() => {
+    const logElement = updateLogRef.current
+    if (! logElement) return
+    logElement.scrollTop = logElement.scrollHeight
+  }, [ updateLog ])
+
+  useEffect(() => () => updateAbortRef.current?.abort(), [])
+
+  useEffect(() => {
     if (! isMobileMenuOpen) return
 
     const originalBodyOverflow = document.body.style.overflow
@@ -206,29 +210,6 @@ export function DatabaseAdminPage() {
       document.documentElement.style.overflow = originalHtmlOverflow
     }
   }, [ isMobileMenuOpen ])
-
-  useEffect(() => {
-    if (! isFilterMenuOpen) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target
-      if (target instanceof Node && filterMenuRef.current && ! filterMenuRef.current.contains(target)) {
-        setIsFilterMenuOpen(false)
-      }
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setIsFilterMenuOpen(false)
-    }
-
-    window.addEventListener("pointerdown", handlePointerDown)
-    window.addEventListener("keydown", handleKeyDown)
-
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown)
-      window.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [ isFilterMenuOpen ])
 
   useEffect(() => {
     if (! ownerDeleteDialog) return
@@ -306,36 +287,24 @@ export function DatabaseAdminPage() {
   }, [ entries, sortedOwners ])
 
   const filteredEntries = useMemo(() => {
-    const entriesMatchingFilter = searchableEntries.filter((item) => {
-      if (entryFilter === "named") return item.hasName
-      if (entryFilter === "scaled") return item.hasScale
-      return true
-    })
+    if (! normalizedSearchTerm) return searchableEntries
 
-    if (! normalizedSearchTerm) return entriesMatchingFilter
-
-    return entriesMatchingFilter.filter((item) => {
+    return searchableEntries.filter((item) => {
       const textMatches = item.searchText.includes(normalizedSearchTerm)
       const minecraftUsernameMatches = resolvedSearchUuid ? item.normalizedUuid === resolvedSearchUuid : false
       return textMatches || minecraftUsernameMatches
     })
-  }, [ entryFilter, normalizedSearchTerm, resolvedSearchUuid, searchableEntries ])
+  }, [ normalizedSearchTerm, resolvedSearchUuid, searchableEntries ])
 
   const filteredOwnerOnlyItems = useMemo(() => {
-    const ownersMatchingFilter = ownerOnlyItems.filter((item) => {
-      if (entryFilter === "named") return item.hasName
-      if (entryFilter === "scaled") return item.hasScale
-      return true
-    })
+    if (! normalizedSearchTerm) return ownerOnlyItems
 
-    if (! normalizedSearchTerm) return ownersMatchingFilter
-
-    return ownersMatchingFilter.filter((item) => {
+    return ownerOnlyItems.filter((item) => {
       const textMatches = item.searchText.includes(normalizedSearchTerm)
       const minecraftUsernameMatches = resolvedSearchUuid ? item.normalizedUuid === resolvedSearchUuid : false
       return textMatches || minecraftUsernameMatches
     })
-  }, [ entryFilter, normalizedSearchTerm, ownerOnlyItems, resolvedSearchUuid ])
+  }, [ normalizedSearchTerm, ownerOnlyItems, resolvedSearchUuid ])
 
   const stats = useMemo(() => {
     const ownerEntries = Object.values(owners)
@@ -351,12 +320,6 @@ export function DatabaseAdminPage() {
       totalEntries: total
     }
   }, [ ownerOnlyItems, searchableEntries ])
-
-  const filterTabs = useMemo<FilterTab[]>(() => [
-    { label: "All", value: "all" },
-    { label: "Names", value: "named" },
-    { label: "Scale", value: "scaled" }
-  ], [])
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -600,6 +563,60 @@ export function DatabaseAdminPage() {
     }
   }, [ authToken, clearSession, ownerDeleteConfirmStep, ownerDeleteDialog ])
 
+  const handleClearRateLimit = useCallback(async (uuid: string) => {
+    if (clearingRateLimitUuid) return
+    setClearingRateLimitUuid(uuid)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+
+    try {
+      await NoammApi.clearRateLimit(uuid, authToken)
+      setSuccessMessage("Rate limit cleared.")
+    }
+    catch (error) {
+      if (error instanceof NoammApiError && error.status === 401) clearSession()
+      setErrorMessage(getErrorMessage(error))
+    }
+    finally {
+      setClearingRateLimitUuid(null)
+    }
+  }, [ authToken, clearSession, clearingRateLimitUuid ])
+
+  const handleRunUpdate = useCallback(async () => {
+    if (isRunningUpdate) return
+    setIsRunningUpdate(true)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+    setUpdateLog([])
+
+    const abortController = new AbortController()
+    updateAbortRef.current = abortController
+
+    try {
+      await NoammApi.runUpdate(authToken, (message) => {
+        setUpdateLog((currentLog) => [ ...currentLog, message ])
+      }, abortController.signal)
+      setSuccessMessage("Database update finished.")
+    }
+    catch (error) {
+      if (abortController.signal.aborted) {
+        setErrorMessage("Database update stopped.")
+      }
+      else {
+        if (error instanceof NoammApiError && error.status === 401) clearSession()
+        setErrorMessage(getErrorMessage(error))
+      }
+    }
+    finally {
+      updateAbortRef.current = null
+      setIsRunningUpdate(false)
+    }
+  }, [ authToken, clearSession, isRunningUpdate ])
+
+  const handleStopUpdate = useCallback(() => {
+    updateAbortRef.current?.abort()
+  }, [])
+
   if (! authToken) return (
     <main className="relative grid min-h-screen place-items-center px-5 py-8">
       <section className="glass-card w-full max-w-[460px] p-6 sm:p-8">
@@ -672,51 +689,26 @@ export function DatabaseAdminPage() {
               />
             </div>
 
-            <div className="relative shrink-0" ref={ filterMenuRef }>
-              <ActionButton
-                aria-expanded={ isFilterMenuOpen }
-                aria-haspopup="menu"
-                className="h-[46px] min-h-[46px] w-full md:w-auto"
-                icon={
-                  <SlidersHorizontal className="h-4 w-4" aria-hidden="true"/>
-                }
-                onClick={ () => setIsFilterMenuOpen((current) => ! current) }
-              >
-                Filter
-              </ActionButton>
-
-              { isFilterMenuOpen ? (
-                <div
-                  className="absolute right-0 z-30 mt-2 grid w-full min-w-40 gap-1 rounded-xl border border-white/10 bg-[#1f1f2c] p-2 shadow-2xl shadow-black/40 md:w-44"
-                  role="menu"
+            <div className="flex shrink-0 gap-2">
+              { isRunningUpdate ? (
+                <ActionButton
+                  className="h-[46px] min-h-[46px]"
+                  icon={ <Square className="h-4 w-4" aria-hidden="true"/> }
+                  onClick={ handleStopUpdate }
+                  variant="danger"
                 >
-                  { filterTabs.map((tab) => {
-                    const isActive = entryFilter === tab.value
-
-                    return (
-                      <button
-                        className={ `flex w-full items-center justify-between rounded-lg px-3.5 py-2.5 text-left text-sm font-semibold transition-colors ${
-                          isActive
-                            ? "bg-white/10 text-white"
-                            : "text-white/55 hover:bg-white/[0.06] hover:text-white"
-                        }` }
-                        key={ tab.value }
-                        onClick={ () => {
-                          setEntryFilter(tab.value)
-                          setIsFilterMenuOpen(false)
-                        } }
-                        role="menuitemradio"
-                        type="button"
-                      >
-                        <span>{ tab.label }</span>
-                        { isActive ? (
-                          <span className="h-1.5 w-1.5 rounded-full bg-cyan-300"/>
-                        ) : null }
-                      </button>
-                    )
-                  }) }
-                </div>
+                  Stop
+                </ActionButton>
               ) : null }
+              <ActionButton
+                className="h-[46px] min-h-[46px]"
+                disabled={ isRunningUpdate }
+                icon={ <RefreshCw className="h-4 w-4" aria-hidden="true"/> }
+                onClick={ () => void handleRunUpdate() }
+                variant="primary"
+              >
+                { isRunningUpdate ? "Running..." : "Run update" }
+              </ActionButton>
             </div>
 
             <ActionButton
@@ -729,6 +721,19 @@ export function DatabaseAdminPage() {
             </ActionButton>
           </div>
 
+          { isRunningUpdate || updateLog.length > 0 ? (
+            <div
+              className="mt-5 max-h-56 overflow-y-auto rounded-2xl border border-white/10 bg-black/15 p-3 font-mono text-[11px] leading-5 text-white/55"
+              ref={ updateLogRef }
+            >
+              { updateLog.map((line, index) => (
+                <p className="whitespace-pre-wrap break-all" key={ index }>
+                  { line }
+                </p>
+              )) }
+            </div>
+          ) : null }
+
           <div className="mt-5">
             { isLoading ? (
               <div className="rounded-2xl border border-white/10 bg-black/15 py-16 text-center text-sm font-semibold text-white/45">
@@ -739,9 +744,11 @@ export function DatabaseAdminPage() {
                 { filteredEntries.map((item) => (
                   <DatabaseEntryRow
                     entry={ item.entry }
+                    isClearingRateLimit={ clearingRateLimitUuid === item.uuid }
                     isDeletingEntry={ deletingUuid === item.uuid }
                     isSavingOwner={ isSavingOwner }
                     key={ item.uuid }
+                    onClearRateLimit={ handleClearRateLimit }
                     onDeleteEntry={ handleDeleteEntryFromSettings }
                     onEdit={ handleEditEntry }
                     onSaveOwner={ handleSaveEntryOwnerSettings }
@@ -751,8 +758,10 @@ export function DatabaseAdminPage() {
                 )) }
                 { filteredOwnerOnlyItems.map((item) => (
                   <DatabaseOwnerOnlyRow
+                    isClearingRateLimit={ clearingRateLimitUuid === item.uuid }
                     isDeleting={ deletingOwnerUuid === item.uuid }
                     key={ `owner-${ item.uuid }` }
+                    onClearRateLimit={ handleClearRateLimit }
                     onDelete={ handleDeleteOwner }
                     onEditEntry={ handleCreateEntryFromOwner }
                     owner={ item.owner }
