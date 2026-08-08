@@ -153,7 +153,8 @@ export function DatabaseAdminPage() {
     setOwnerDialog(null)
     setOwnerDeleteDialog(null)
     setOwnerDeleteConfirmStep(0)
-    void NoammApi.adminLogout().catch(() => {})
+    void NoammApi.adminLogout().catch(() => {
+    })
   }, [])
 
   const loadEntries = useCallback(async (options: { showLoading?: boolean, silent?: boolean } = {}) => {
@@ -793,8 +794,6 @@ export function DatabaseAdminPage() {
               </div>
             ) }
           </div>
-
-          <SiteCredit className="mt-6"/>
         </section>
       </div>
 
