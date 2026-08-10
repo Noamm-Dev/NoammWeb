@@ -12,6 +12,7 @@ export interface DatabaseOwnerPayload {
   uuid: string
   hasName: boolean
   hasSize: boolean
+  hasHalo: boolean
 }
 
 interface DatabaseOwnerModalProps {
@@ -28,6 +29,7 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
   const [ debouncedUuid, setDebouncedUuid ] = useState(initialUuid)
   const [ hasName, setHasName ] = useState(initialOwner?.hasName ?? false)
   const [ hasSize, setHasSize ] = useState(initialOwner?.hasSize ?? false)
+  const [ hasHalo, setHasHalo ] = useState(initialOwner?.hasHalo ?? false)
   const [ formError, setFormError ] = useState<string | null>(null)
   const [ isResolving, setIsResolving ] = useState(false)
 
@@ -81,7 +83,7 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
         }
         uuid = MinecraftApi.dashedUUID(profile.uuid) || profile.uuid
       }
-      catch (e) {
+      catch {
         setIsResolving(false)
         return setFormError("Failed to lookup Minecraft username.")
       }
@@ -90,7 +92,7 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
     else if (! MinecraftApi.isMinecraftUuid(uuid)) return setFormError("Enter a valid Minecraft username or UUID.")
     else uuid = MinecraftApi.dashedUUID(uuid) || uuid
 
-    const apiError = await onSubmit({ uuid, hasName, hasSize })
+    const apiError = await onSubmit({ uuid, hasName, hasSize, hasHalo })
 
     if (apiError) setFormError(apiError)
   }
@@ -151,7 +153,7 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
                 value={ uuid }
               />
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <label className="flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]">
                   <input
                     checked={ hasName }
@@ -175,6 +177,19 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
                   <span className="flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-cyan-200" aria-hidden="true"/>
                     <span>hasSize</span>
+                  </span>
+                </label>
+
+                <label className="flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]">
+                  <input
+                    checked={ hasHalo }
+                    className="h-4 w-4 accent-cyan-300"
+                    onChange={ (event) => setHasHalo(event.target.checked) }
+                    type="checkbox"
+                  />
+                  <span className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-cyan-200" aria-hidden="true"/>
+                    <span>hasHalo</span>
                   </span>
                 </label>
               </div>

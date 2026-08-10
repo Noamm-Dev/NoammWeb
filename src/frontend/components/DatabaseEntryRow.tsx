@@ -1,6 +1,7 @@
 import { Save, Settings, ShieldCheck, TimerReset, Trash2, X } from "lucide-react"
 import { type CSSProperties, type FormEvent, type KeyboardEvent, memo, type MouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
+import { haloToCss, haloToRgba } from "../lib/halo"
 import { ActionButton } from "./ActionButton"
 import { MinecraftTextPreview } from "./MinecraftTextPreview"
 import { StatusBanner } from "./StatusBanner"
@@ -42,7 +43,7 @@ function buildSizeTags(entry: DatabaseEntry): SizeTag[] {
   return tags
 }
 
-const DEFAULT_OWNER: DatabaseOwner = { hasName: false, hasSize: false }
+const DEFAULT_OWNER: DatabaseOwner = { hasName: false, hasSize: false, hasHalo: false }
 
 const DELETE_CONFIRM_LABELS = [
   "Are you sure?",
@@ -84,6 +85,7 @@ export const DatabaseEntryRow = memo(({
   const [ deleteConfirmStep, setDeleteConfirmStep ] = useState(0)
   const [ hasName, setHasName ] = useState(owner.hasName)
   const [ hasSize, setHasSize ] = useState(owner.hasSize)
+  const [ hasHalo, setHasHalo ] = useState(owner.hasHalo)
   const [ formError, setFormError ] = useState<string | null>(null)
   const [ settingsMenuPosition, setSettingsMenuPosition ] = useState<SettingsMenuPosition | null>(null)
 
@@ -133,7 +135,8 @@ export const DatabaseEntryRow = memo(({
     if (isSettingsMenuOpen) return
     setHasName(owner.hasName)
     setHasSize(owner.hasSize)
-  }, [ isSettingsMenuOpen, owner.hasName, owner.hasSize ])
+    setHasHalo(owner.hasHalo)
+  }, [ isSettingsMenuOpen, owner.hasHalo, owner.hasName, owner.hasSize ])
 
   useEffect(() => {
     if (! isSettingsMenuOpen) return
@@ -200,6 +203,7 @@ export const DatabaseEntryRow = memo(({
 
     setHasName(owner.hasName)
     setHasSize(owner.hasSize)
+    setHasHalo(owner.hasHalo)
     setFormError(null)
     setIsDeleteConfirming(false)
     setDeleteConfirmStep(0)
@@ -212,7 +216,7 @@ export const DatabaseEntryRow = memo(({
     if (! onSaveOwner) return
 
     setFormError(null)
-    const apiError = await onSaveOwner(uuid, { hasName, hasSize })
+    const apiError = await onSaveOwner(uuid, { hasName, hasSize, hasHalo })
     if (apiError) {
       setFormError(apiError)
       return
@@ -372,6 +376,20 @@ export const DatabaseEntryRow = memo(({
               </span>
             </label>
 
+            <label className="flex min-h-11 items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]">
+              <input
+                checked={ hasHalo }
+                className="h-4 w-4 accent-cyan-300"
+                disabled={ isBusy }
+                onChange={ (event) => setHasHalo(event.target.checked) }
+                type="checkbox"
+              />
+              <span className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-cyan-200" aria-hidden="true"/>
+                <span>hasHalo</span>
+              </span>
+            </label>
+
             <StatusBanner message={ formError } tone="error"/>
 
             <ActionButton
@@ -456,6 +474,16 @@ export const DatabaseEntryRow = memo(({
               <span>Default scale</span>
             </span>
           ) }
+
+          { entry.hasCustomHalo() ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-xs font-semibold text-white/38">
+              <span
+                className="h-3 w-3 rounded-full border border-white/20"
+                style={ { backgroundColor: haloToRgba(entry.getHalo()) } }
+              />
+              <span className="font-mono text-[11px] text-white/55">{ haloToCss(entry.getHalo()) }</span>
+            </span>
+          ) : null }
         </div>
 
         { canConfigureOwner ? (

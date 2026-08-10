@@ -1,6 +1,7 @@
-import { Hash, RotateCcw, Ruler, Save, Type, X } from "lucide-react"
+import { Hash, RotateCcw, Ruler, Save, Sparkles, Type, X } from "lucide-react"
 import { type FormEvent, useEffect, useState } from "react"
 import { SLIDER_CONFIG } from "../content/database"
+import { cssRgbToHalo, HALO_DEFAULT, haloRgbToCss, haloToCss } from "../lib/halo"
 import DatabaseEntry from "../types/DatabaseEntry"
 import { ActionButton } from "./ActionButton"
 import { MinecraftSkinViewer } from "./MinecraftSkinViewer"
@@ -25,6 +26,7 @@ interface DatabaseFormState {
   sizeX: string,
   sizeY: string,
   sizeZ: string,
+  halo: number,
 }
 
 type SizeField = "sizeX" | "sizeY" | "sizeZ"
@@ -51,6 +53,13 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
   const updateField = (field: keyof DatabaseFormState, value: string) => setFormState((currentState) => ({ ...currentState, [field]: value }))
   const updateSizeField = (field: SizeField, value: string) => updateField(field, value.replace(/,/g, "."))
   const resetSizes = () => setFormState((currentState) => ({ ...currentState, sizeX: "1.0", sizeY: "1.0", sizeZ: "1.0" }))
+  const resetHalo = () => setFormState((currentState) => ({ ...currentState, halo: HALO_DEFAULT }))
+
+  const setHaloRgb = (rgbCss: string) => {
+    const nextHalo = cssRgbToHalo(rgbCss, 255)
+    if (nextHalo === null) return
+    setFormState((currentState) => ({ ...currentState, halo: nextHalo }))
+  }
 
   useEffect(() => {
     const originalBodyOverflow = document.body.style.overflow
@@ -89,7 +98,7 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
 
     setFormError(null)
 
-    const apiError = await onSubmit(uuid, new DatabaseEntry(formState.name, parsedSizeX, parsedSizeY, parsedSizeZ))
+    const apiError = await onSubmit(uuid, new DatabaseEntry(formState.name, parsedSizeX, parsedSizeY, parsedSizeZ, formState.halo))
 
     if (apiError) setFormError(apiError)
   }
@@ -165,6 +174,36 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
                 emptyLabel="No custom name yet"
                 value={ formState.name }
               />
+            </div>
+
+            <div className="h-px bg-white/10"/>
+
+            <div>
+              <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-white/60">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true"/>
+                <span>Halo Color</span>
+              </span>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                <input
+                  aria-label="Halo color"
+                  className="h-9 w-11 shrink-0 cursor-pointer rounded-lg border border-white/10 bg-transparent p-0.5"
+                  disabled={ isSaving }
+                  onChange={ (event) => setHaloRgb(event.target.value) }
+                  type="color"
+                  value={ haloRgbToCss(formState.halo) }
+                />
+                <span className="shrink-0 rounded-lg border border-white/10 bg-black/15 px-2 py-1 font-mono text-[11px] text-white/55">
+                  { haloToCss(formState.halo) }
+                </span>
+                <ActionButton
+                  aria-label="Reset halo"
+                  className="ml-auto h-9 w-9 shrink-0 rounded-lg border-transparent bg-transparent px-0 py-0 text-white/42 hover:bg-white/[0.04] hover:text-white/70"
+                  disabled={ isSaving }
+                  icon={ <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/> }
+                  onClick={ resetHalo }
+                  variant="ghost"
+                />
+              </div>
             </div>
 
             <div className="h-px bg-white/10"/>
@@ -266,6 +305,7 @@ function buildFormState(uuid: string | undefined, entry: DatabaseEntry | undefin
     sizeX: formatSize(entry?.getSizeX()),
     sizeY: formatSize(entry?.getSizeY()),
     sizeZ: formatSize(entry?.getSizeZ()),
+    halo: entry?.getHalo() ?? HALO_DEFAULT,
     uuid: uuid ?? ""
   }
 }

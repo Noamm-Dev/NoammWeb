@@ -12,14 +12,16 @@ export interface DatabaseData {
 export interface DatabaseOwner {
   hasName: boolean
   hasSize: boolean
+  hasHalo: boolean
 }
 
 export const databaseOwnerFromUnknown = (value: unknown): DatabaseOwner => {
-  if (! isJsonRecord(value)) return { hasName: false, hasSize: false }
+  if (! isJsonRecord(value)) return { hasName: false, hasSize: false, hasHalo: false }
 
   return {
     hasName: value.hasName === true,
-    hasSize: value.hasSize === true
+    hasSize: value.hasSize === true,
+    hasHalo: value.hasHalo === true
   }
 }
 
@@ -33,12 +35,14 @@ export default class DatabaseEntry {
   private sizeX: number
   private sizeY: number
   private sizeZ: number
+  private halo: number
 
-  constructor(name: string | null = null, sizeX: number | null = null, sizeY: number | null = null, sizeZ: number | null = null) {
+  constructor(name: string | null = null, sizeX: number | null = null, sizeY: number | null = null, sizeZ: number | null = null, halo: number | null = null) {
     this.name = name ?? ""
     this.sizeX = DatabaseEntry.readSize(sizeX)
     this.sizeY = DatabaseEntry.readSize(sizeY)
     this.sizeZ = DatabaseEntry.readSize(sizeZ)
+    this.halo = DatabaseEntry.readHalo(halo)
   }
 
   static fromUnknown(value: unknown) {
@@ -49,7 +53,8 @@ export default class DatabaseEntry {
       DatabaseEntry.readName(value.name),
       DatabaseEntry.readSize(value.sizeX),
       DatabaseEntry.readSize(value.sizeY),
-      DatabaseEntry.readSize(value.sizeZ)
+      DatabaseEntry.readSize(value.sizeZ),
+      DatabaseEntry.readHalo(value.halo)
     )
   }
 
@@ -65,6 +70,11 @@ export default class DatabaseEntry {
   private static readSize(value: unknown) {
     if (typeof value !== "number") return 1
     return Number.isFinite(value) ? value : 1
+  }
+
+  private static readHalo(value: unknown) {
+    if (typeof value !== "number" || ! Number.isInteger(value)) return 1
+    return value
   }
 
   getName() {
@@ -87,6 +97,10 @@ export default class DatabaseEntry {
     if (axis === "x") return this.sizeX
     if (axis === "y") return this.sizeY
     return this.sizeZ
+  }
+
+  getHalo() {
+    return this.halo
   }
 
   setName(customName: string) {
@@ -113,6 +127,15 @@ export default class DatabaseEntry {
     if (axis === "x") return this.setSizeX(size)
     if (axis === "y") return this.setSizeY(size)
     return this.setSizeZ(size)
+  }
+
+  setHalo(halo: number) {
+    this.halo = DatabaseEntry.readHalo(halo)
+    return this
+  }
+
+  hasCustomHalo() {
+    return this.halo !== 1
   }
 
   hasCustomScale() {
@@ -144,11 +167,12 @@ export default class DatabaseEntry {
       name: this.name,
       sizeX: this.sizeX,
       sizeY: this.sizeY,
-      sizeZ: this.sizeZ
+      sizeZ: this.sizeZ,
+      halo: this.halo
     }
   }
 
   copy() {
-    return new DatabaseEntry(this.name, this.sizeX, this.sizeY, this.sizeZ)
+    return new DatabaseEntry(this.name, this.sizeX, this.sizeY, this.sizeZ, this.halo)
   }
 }

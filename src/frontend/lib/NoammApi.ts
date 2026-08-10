@@ -25,7 +25,7 @@ export class NoammApiError extends Error {
 }
 
 class NoammApi {
-  readonly baseURL = "https://api.noamm.org"
+  readonly baseURL = import.meta.env.DEV ? "/api" : "https://api.noamm.org"
   readonly authConfig = { codeLength: 6, codeTTL: 300 }
 
   async requestMcIdCode(uuid: string) {

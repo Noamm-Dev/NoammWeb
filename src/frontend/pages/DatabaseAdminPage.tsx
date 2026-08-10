@@ -32,7 +32,7 @@ const DELETE_CONFIRM_LABELS = [
   "Are you really really sure?"
 ] as const
 
-const DEFAULT_OWNER: DatabaseOwner = { hasName: false, hasSize: false }
+const DEFAULT_OWNER: DatabaseOwner = { hasName: false, hasSize: false, hasHalo: false }
 
 interface DatabaseMenuContentProps {
   isLoading: boolean
@@ -433,7 +433,8 @@ export function DatabaseAdminPage() {
     try {
       const owner: DatabaseOwner = {
         hasName: payload.hasName,
-        hasSize: payload.hasSize
+        hasSize: payload.hasSize,
+        hasHalo: payload.hasHalo
       }
 
       await NoammApi.saveOwner(payload.uuid, owner)
@@ -895,6 +896,13 @@ export function DatabaseAdminPage() {
                     : "border-white/10 bg-white/[0.035] text-white/34"
                 }` }>
                   hasSize
+                </span>
+                <span className={ `inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                  ownerDeleteDialog.owner.hasHalo
+                    ? "border-cyan-300/20 bg-cyan-300/[0.075] text-cyan-100/85"
+                    : "border-white/10 bg-white/[0.035] text-white/34"
+                }` }>
+                  hasHalo
                 </span>
               </div>
             </div>
