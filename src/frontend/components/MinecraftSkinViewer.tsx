@@ -1,12 +1,14 @@
 import { useEffect, useRef } from "react"
 import { IdleAnimation, SkinViewer as SkinViewer3D } from "skinview3d"
 import fallbackSkinUrl from "../assets/steve.png"
+import { MinecraftHaloObject } from "../lib/MinecraftHaloObject"
 import { MinecraftNameTagObject } from "../lib/MinecraftNameTagObject"
 import type { Scale } from "../types/profile"
 import { DEFAULT_SCALE } from '../content/database'
 
 export interface MinecraftSkinViewerProps {
   capeUrl?: string
+  halo?: number | null
   height?: number
   nameTag?: string | null
   scale?: Scale | null
@@ -44,6 +46,19 @@ function syncNameTag(viewer: SkinViewer3D, currentNameTag: MinecraftNameTagObjec
   return nextNameTag
 }
 
+function syncHalo(viewer: SkinViewer3D, currentHalo: MinecraftHaloObject | null, halo: number | null | undefined) {
+  if (currentHalo) {
+    viewer.playerObject.remove(currentHalo)
+    currentHalo.dispose()
+  }
+
+  if (typeof halo !== "number") return null
+
+  const nextHalo = new MinecraftHaloObject(halo)
+  viewer.playerObject.add(nextHalo)
+  return nextHalo
+}
+
 async function loadViewerTextures(viewer: SkinViewer3D, skinUrl: string, capeUrl?: string) {
   try {
     await viewer.loadSkin(skinUrl)
@@ -62,10 +77,11 @@ async function loadViewerTextures(viewer: SkinViewer3D, skinUrl: string, capeUrl
   }
 }
 
-export function MinecraftSkinViewer({ capeUrl, height = 400, nameTag = null, scale = null, skinUrl, width = 300 }: MinecraftSkinViewerProps) {
+export function MinecraftSkinViewer({ capeUrl, halo = null, height = 400, nameTag = null, scale = null, skinUrl, width = 300 }: MinecraftSkinViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const viewerRef = useRef<SkinViewer3D | null>(null)
   const nameTagRef = useRef<MinecraftNameTagObject | null>(null)
+  const haloRef = useRef<MinecraftHaloObject | null>(null)
   const scaleX = scale?.x
   const scaleY = scale?.y
   const scaleZ = scale?.z
@@ -92,6 +108,7 @@ export function MinecraftSkinViewer({ capeUrl, height = 400, nameTag = null, sca
 
     const idleAnimation = new IdleAnimation()
     idleAnimation.speed = 1
+    idleAnimation.addAnimation(() => haloRef.current?.tick())
     viewer.animation = idleAnimation
 
     applyViewerState(viewer, null)
@@ -103,6 +120,12 @@ export function MinecraftSkinViewer({ capeUrl, height = 400, nameTag = null, sca
         viewer.playerWrapper.remove(nameTagRef.current)
         nameTagRef.current.disposeTag()
         nameTagRef.current = null
+      }
+
+      if (haloRef.current) {
+        viewer.playerObject.remove(haloRef.current)
+        haloRef.current.dispose()
+        haloRef.current = null
       }
 
       if (viewerRef.current === viewer) viewerRef.current = null
@@ -122,6 +145,18 @@ export function MinecraftSkinViewer({ capeUrl, height = 400, nameTag = null, sca
     applyViewerState(viewer, nextScale)
     nameTagRef.current = syncNameTag(viewer, nameTagRef.current, nameTag, nextScale)
   }, [ nameTag, scaleX, scaleY, scaleZ ])
+
+  useEffect(() => {
+    const viewer = viewerRef.current
+    if (! viewer) return
+
+    if (haloRef.current && typeof halo === "number") {
+      haloRef.current.setColor(halo)
+      return
+    }
+
+    haloRef.current = syncHalo(viewer, haloRef.current, halo)
+  }, [ halo ])
 
   return (
     <div

@@ -1,12 +1,12 @@
-import { Suspense, useEffect, useMemo, useState } from "react"
-import { RotateCcw, Type, UserRound } from "lucide-react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { RotateCcw, Sparkles, Type, UserRound } from "lucide-react"
 import { ActionButton } from "../components/ActionButton"
 import { MinecraftSkinViewer } from "../components/MinecraftSkinViewer"
 import { RGBirdflopGenerator } from "../components/RGBirdflopGenerator"
-import { SiteCredit } from "../components/SiteCredit"
 import { StatusBanner } from "../components/StatusBanner"
 import { TextField } from "../components/TextField"
 import { DEFAULT_SCALE, SCALE_AXES, SLIDER_CONFIG } from "../content/database"
+import { cssRgbToHalo, HALO_DEFAULT, haloRgbToCss, haloToCss } from "../lib/halo"
 import type { Scale } from "../types/profile"
 
 type ParsedScale = { error: string, value: null } | { error: null, value: Scale }
@@ -56,6 +56,7 @@ export function PreviewPage() {
   const [ minecraftUsername, setMinecraftUsername ] = useState(PREVIEW_USERNAME)
   const [ debouncedUsername, setDebouncedUsername ] = useState(PREVIEW_USERNAME)
   const [ customName, setCustomName ] = useState("")
+  const [ halo, setHalo ] = useState(HALO_DEFAULT)
   const [ scaleInput, setScaleInput ] = useState<ScaleInputState>(() => scaleToScaleInput(DEFAULT_SCALE))
 
   useEffect(() => {
@@ -77,6 +78,29 @@ export function PreviewPage() {
   }
 
   const resetScale = () => setScaleInput(scaleToScaleInput(DEFAULT_SCALE))
+
+  const haloInputRef = useRef<HTMLInputElement | null>(null)
+  const haloDebounceRef = useRef<number | null>(null)
+
+  const handleSetHalo = (rgb: string) => {
+    if (haloDebounceRef.current !== null) window.clearTimeout(haloDebounceRef.current)
+
+    haloDebounceRef.current = window.setTimeout(() => {
+      haloDebounceRef.current = null
+      const nextHalo = cssRgbToHalo(rgb, 255)
+      if (nextHalo !== null) setHalo(nextHalo)
+    }, DEBOUNCE_DELAY_MS)
+  }
+
+  const resetHalo = () => {
+    if (haloDebounceRef.current !== null) {
+      window.clearTimeout(haloDebounceRef.current)
+      haloDebounceRef.current = null
+    }
+
+    if (haloInputRef.current) haloInputRef.current.value = haloRgbToCss(HALO_DEFAULT)
+    setHalo(HALO_DEFAULT)
+  }
 
   return (
     <main className="relative flex min-h-screen items-center justify-center px-4 py-8">
@@ -158,6 +182,7 @@ export function PreviewPage() {
               }>
                 <MinecraftSkinViewer
                   key={ skinUrl }
+                  halo={ halo }
                   height={ 320 }
                   nameTag={ nameTag }
                   scale={ previewScale }
@@ -199,11 +224,36 @@ export function PreviewPage() {
               )) }
             </div>
 
+            <div>
+              <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-white/60">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true"/>
+                <span>Halo Color</span>
+              </span>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                <input
+                  aria-label="Halo color"
+                  className="h-9 w-11 shrink-0 cursor-pointer rounded-lg border border-white/10 bg-transparent p-0.5"
+                  defaultValue={ haloRgbToCss(HALO_DEFAULT) }
+                  onChange={ (event) => handleSetHalo(event.target.value) }
+                  ref={ haloInputRef }
+                  type="color"
+                />
+                <span className="shrink-0 rounded-lg border border-white/10 bg-black/15 px-2 py-1 font-mono text-[11px] text-white/55">
+                  { haloToCss(halo) }
+                </span>
+                <ActionButton
+                  aria-label="Reset halo"
+                  className="ml-auto h-9 w-9 shrink-0 rounded-lg border-transparent bg-transparent px-0 py-0 text-white/42 hover:bg-white/[0.04] hover:text-white/70"
+                  icon={ <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/> }
+                  onClick={ resetHalo }
+                  variant="ghost"
+                />
+              </div>
+            </div>
+
             <StatusBanner message={ parsedScale.error } tone="error"/>
           </div>
         </div>
-
-        <SiteCredit className="mt-6"/>
       </section>
     </main>
   )

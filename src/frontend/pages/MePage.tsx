@@ -1,12 +1,13 @@
-import { type FormEvent, Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { type FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Navigate, useNavigate } from "react-router-dom"
-import { LogOut, RotateCcw, Timer, Type } from "lucide-react"
+import { LogOut, RotateCcw, Sparkles, Timer, Type } from "lucide-react"
 import { ActionButton } from "../components/ActionButton"
 import { MinecraftTextPreview } from "../components/MinecraftTextPreview"
 import { SiteCredit } from "../components/SiteCredit"
 import { StatusBanner } from "../components/StatusBanner"
 import { TextField } from "../components/TextField"
 import AuthSession from "../lib/AuthSession"
+import { cssRgbToHalo, HALO_DEFAULT, haloRgbToCss, haloToCss } from "../lib/halo"
 import NoammApi, { NoammApiError } from "../lib/NoammApi"
 import NotificationManager from "../lib/NotificationManager"
 import { getPlainMinecraftText } from "../lib/minecraft-text"
@@ -43,6 +44,7 @@ const parseScaleInput = (value: string) => {
 const NAME_INVALID_CHARACTERS_REGEX = /[^A-Za-z0-9_]/g
 const BANNED_NAME_CHARACTERS = new Set([ '卐', '卍' ])
 const SCALE_MIN_ABSOLUTE = 0.09
+const HALO_DEBOUNCE_DELAY_MS = 500
 
 const scaleValuesClose = (a: number, b: number) => Math.abs(a - b) < 0.001
 const getCustomNameError = (name: string, username: string | null): string | null => {
@@ -94,6 +96,35 @@ export function MePage() {
   const [ successMessage, setSuccessMessage ] = useState<string | null>(null)
 
   const handleGenerateName = useCallback((output: string) => setDatabaseEntry((entry) => entry.copy().setName(output)), [])
+
+  const haloInputRef = useRef<HTMLInputElement | null>(null)
+  const haloDebounceRef = useRef<number | null>(null)
+
+  const handleSetHalo = (rgb: string) => {
+    if (haloDebounceRef.current !== null) window.clearTimeout(haloDebounceRef.current)
+
+    haloDebounceRef.current = window.setTimeout(() => {
+      haloDebounceRef.current = null
+      const nextHalo = cssRgbToHalo(rgb, 255)
+      if (nextHalo !== null) setDatabaseEntry((entry) => entry.copy().setHalo(nextHalo))
+    }, HALO_DEBOUNCE_DELAY_MS)
+  }
+
+  const resetCustomHalo = () => {
+    if (haloDebounceRef.current !== null) {
+      window.clearTimeout(haloDebounceRef.current)
+      haloDebounceRef.current = null
+    }
+
+    if (haloInputRef.current) haloInputRef.current.value = haloRgbToCss(HALO_DEFAULT)
+    setDatabaseEntry((entry) => entry.copy().setHalo(HALO_DEFAULT))
+  }
+
+  const haloInputCss = haloRgbToCss(databaseEntry.hasCustomHalo() ? databaseEntry.getHalo() : HALO_DEFAULT)
+
+  useEffect(() => {
+    if (haloInputRef.current) haloInputRef.current.value = haloInputCss
+  }, [ haloInputCss ])
 
   const setCustomScale = (axis: DatabaseEntryAxis, value: string) => {
     const normalizedValue = value.replace(/,/g, ".")
@@ -198,10 +229,13 @@ export function MePage() {
   const previewScale = parsedScale.error === null ? parsedScale.value : (player?.scale ?? null)
   const canEditName = player?.hasName !== false
   const canEditSize = player?.hasSize !== false
+  const canEditHalo = player?.hasHalo !== false
   const serverBacked = sessionSource === "server"
   const hasNameChanged = player !== null && customName !== player.displayName
   const hasScaleChanged = player !== null && parsedScale.error === null && ! scalesEqual(parsedScale.value, player.scale)
-  const hasChanges = hasNameChanged || hasScaleChanged
+  const hasHaloChanged = player !== null && canEditHalo && player.halo !== null && databaseEntry.getHalo() !== player.halo
+  const hasChanges = hasNameChanged || hasScaleChanged || hasHaloChanged
+  const previewHalo = databaseEntry.hasCustomHalo() ? databaseEntry.getHalo() : (canEditHalo ? HALO_DEFAULT : null)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -213,6 +247,7 @@ export function MePage() {
 
     if (! canEditName && hasNameChanged) return NotificationManager.notify({ message: "You do not have permission to edit your custom name.", tone: "error" })
     if (! canEditSize && hasScaleChanged) return NotificationManager.notify({ message: "You do not have permission to edit your size.", tone: "error" })
+    if (! canEditHalo && hasHaloChanged) return NotificationManager.notify({ message: "You do not have permission to edit your halo.", tone: "error" })
     if (customName !== null) {
       const nameError = getCustomNameError(customName, player.username)
       if (nameError) return NotificationManager.notify({ message: nameError, tone: "error" })
@@ -241,6 +276,8 @@ export function MePage() {
       if (! scaleValuesClose(savedScale.x, submittedScale.x) || ! scaleValuesClose(savedScale.y, submittedScale.y) || ! scaleValuesClose(savedScale.z, submittedScale.z)) {
         rejectedMessages.push("Your scale was rejected by the server.")
       }
+
+      if (response.getHalo() !== entryToSave.getHalo()) rejectedMessages.push("Your halo color was rejected by the server.")
 
       if (rejectedMessages.length > 0) setErrorMessage(rejectedMessages.join(" "))
       else setSuccessMessage("Profile saved.")
@@ -277,7 +314,7 @@ export function MePage() {
   const encodedPlayerIdentity = encodeURIComponent(playerIdentity)
   const skinUrl = `https://mc-heads.net/skin/${ encodedPlayerIdentity }`
   const displayLabel = player.username ?? player.uuid
-  const isDonor = canEditName || canEditSize
+  const isDonor = canEditName || canEditSize || canEditHalo
 
   return (
     <main className="relative flex min-h-screen items-center justify-center px-4 py-8">
@@ -401,7 +438,7 @@ export function MePage() {
                     Loading skin...
                   </div>
                 }>
-                  <MinecraftSkinViewer height={ 320 } scale={ previewScale } skinUrl={ skinUrl } width={ 320 }/>
+                  <MinecraftSkinViewer height={ 320 } halo={ previewHalo } scale={ previewScale } skinUrl={ skinUrl } width={ 320 }/>
                 </Suspense>
               </div>
 
@@ -434,10 +471,39 @@ export function MePage() {
                       inputMode="decimal"
                       onChange={ (e) => setCustomScale(axis, e.target.value) }
                       type="text"
-                      value={ scaleInput[axis] }
-                    />
-                  </div>
-                )) }
+                    value={ scaleInput[axis] }
+                  />
+                </div>
+              )) }
+              </div>
+
+              <div>
+                <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-white/60">
+                  <Sparkles className="h-3.5 w-3.5" aria-hidden="true"/>
+                  <span>Halo Color</span>
+                </span>
+                <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                  <input
+                    aria-label="Halo color"
+                    className="h-9 w-11 shrink-0 cursor-pointer rounded-lg border border-white/10 bg-transparent p-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    defaultValue={ haloInputCss }
+                    disabled={ isSaving || ! canEditHalo }
+                    onChange={ (event) => handleSetHalo(event.target.value) }
+                    ref={ haloInputRef }
+                    type="color"
+                  />
+                  <span className="shrink-0 rounded-lg border border-white/10 bg-black/15 px-2 py-1 font-mono text-[11px] text-white/55">
+                    { haloToCss(databaseEntry.hasCustomHalo() ? databaseEntry.getHalo() : HALO_DEFAULT) }
+                  </span>
+                  <ActionButton
+                    aria-label="Reset halo"
+                    className="ml-auto h-9 w-9 shrink-0 rounded-lg border-transparent bg-transparent px-0 py-0 text-white/42 hover:bg-white/[0.04] hover:text-white/70"
+                    disabled={ isSaving || ! canEditHalo }
+                    icon={ <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/> }
+                    onClick={ resetCustomHalo }
+                    variant="ghost"
+                  />
+                </div>
               </div>
 
             </div>

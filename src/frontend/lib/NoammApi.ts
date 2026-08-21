@@ -47,6 +47,7 @@ class NoammApi {
     const playerUuid = MinecraftApi.dashedUUID(data.userId as string)
     const hasName = data.hasName as boolean
     const hasSize = data.hasSize as boolean
+    const hasHalo = data.hasHalo === true
 
     if (! apiKey || ! playerUuid || ! Number.isFinite(expiresIn) || expiresIn <= 0) return { authenticated: false }
 
@@ -59,10 +60,12 @@ class NoammApi {
         aliases: username ? [ username ] : [],
         displayName: null,
         scale: null,
+        halo: null,
         username: username,
         uuid: playerUuid,
         hasName,
-        hasSize
+        hasSize,
+        hasHalo
       }
     }
   }

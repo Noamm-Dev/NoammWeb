@@ -1,4 +1,5 @@
 export const HALO_DEFAULT = 0xFFFFFF00 | 0
+export const HALO_UNSET = 1
 
 function toHexByte(value: number) {
   return value.toString(16).padStart(2, "0")

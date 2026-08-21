@@ -1,5 +1,6 @@
 import type { ProfilePlayer, Scale } from "./profile"
 import { isJsonRecord } from "../utils"
+import { HALO_UNSET } from "../lib/halo"
 import { mapValues } from 'remeda'
 
 export type DatabaseEntryAxis = "x" | "y" | "z"
@@ -73,7 +74,7 @@ export default class DatabaseEntry {
   }
 
   private static readHalo(value: unknown) {
-    if (typeof value !== "number" || ! Number.isInteger(value)) return 1
+    if (typeof value !== "number" || ! Number.isInteger(value)) return HALO_UNSET
     return value
   }
 
@@ -134,8 +135,13 @@ export default class DatabaseEntry {
     return this
   }
 
+  removeHalo() {
+    this.halo = HALO_UNSET
+    return this
+  }
+
   hasCustomHalo() {
-    return this.halo !== 1
+    return this.halo !== HALO_UNSET
   }
 
   hasCustomScale() {
@@ -158,6 +164,7 @@ export default class DatabaseEntry {
     return {
       ...player,
       displayName: this.getName().trim() || null,
+      halo: this.getHalo(),
       scale: this.toScale()
     }
   }
@@ -168,7 +175,7 @@ export default class DatabaseEntry {
       sizeX: this.sizeX,
       sizeY: this.sizeY,
       sizeZ: this.sizeZ,
-      halo: this.halo
+      halo: this.hasCustomHalo() ? this.halo : null
     }
   }
 

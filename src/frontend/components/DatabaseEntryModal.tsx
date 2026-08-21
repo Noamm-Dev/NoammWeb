@@ -1,7 +1,7 @@
-import { Hash, RotateCcw, Ruler, Save, Sparkles, Type, X } from "lucide-react"
+import { Eraser, Hash, RotateCcw, Ruler, Save, Sparkles, Type, X } from "lucide-react"
 import { type FormEvent, useEffect, useState } from "react"
 import { SLIDER_CONFIG } from "../content/database"
-import { cssRgbToHalo, HALO_DEFAULT, haloRgbToCss, haloToCss } from "../lib/halo"
+import { cssRgbToHalo, HALO_DEFAULT, HALO_UNSET, haloRgbToCss, haloToCss } from "../lib/halo"
 import DatabaseEntry from "../types/DatabaseEntry"
 import { ActionButton } from "./ActionButton"
 import { MinecraftSkinViewer } from "./MinecraftSkinViewer"
@@ -54,6 +54,7 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
   const updateSizeField = (field: SizeField, value: string) => updateField(field, value.replace(/,/g, "."))
   const resetSizes = () => setFormState((currentState) => ({ ...currentState, sizeX: "1.0", sizeY: "1.0", sizeZ: "1.0" }))
   const resetHalo = () => setFormState((currentState) => ({ ...currentState, halo: HALO_DEFAULT }))
+  const removeHalo = () => setFormState((currentState) => ({ ...currentState, halo: HALO_UNSET }))
 
   const setHaloRgb = (rgbCss: string) => {
     const nextHalo = cssRgbToHalo(rgbCss, 255)
@@ -190,19 +191,31 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
                   disabled={ isSaving }
                   onChange={ (event) => setHaloRgb(event.target.value) }
                   type="color"
-                  value={ haloRgbToCss(formState.halo) }
+                  value={ haloRgbToCss(formState.halo === HALO_UNSET ? HALO_DEFAULT : formState.halo) }
                 />
-                <span className="shrink-0 rounded-lg border border-white/10 bg-black/15 px-2 py-1 font-mono text-[11px] text-white/55">
-                  { haloToCss(formState.halo) }
+                <span className={ `shrink-0 rounded-lg border border-white/10 bg-black/15 px-2 py-1 font-mono text-[11px] ${ formState.halo === HALO_UNSET ? "text-white/30" : "text-white/55" }` }>
+                  { formState.halo === HALO_UNSET ? "No halo" : haloToCss(formState.halo) }
                 </span>
-                <ActionButton
-                  aria-label="Reset halo"
-                  className="ml-auto h-9 w-9 shrink-0 rounded-lg border-transparent bg-transparent px-0 py-0 text-white/42 hover:bg-white/[0.04] hover:text-white/70"
-                  disabled={ isSaving }
-                  icon={ <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/> }
-                  onClick={ resetHalo }
-                  variant="ghost"
-                />
+                <div className="ml-auto flex shrink-0 items-center gap-1">
+                  { formState.halo !== HALO_UNSET ? (
+                    <ActionButton
+                      aria-label="Remove halo"
+                      className="h-9 w-9 shrink-0 rounded-lg border-transparent bg-transparent px-0 py-0 text-white/42 hover:bg-white/[0.04] hover:text-red-200/80"
+                      disabled={ isSaving }
+                      icon={ <Eraser className="h-3.5 w-3.5" aria-hidden="true"/> }
+                      onClick={ removeHalo }
+                      variant="ghost"
+                    />
+                  ) : null }
+                  <ActionButton
+                    aria-label="Reset halo"
+                    className="h-9 w-9 shrink-0 rounded-lg border-transparent bg-transparent px-0 py-0 text-white/42 hover:bg-white/[0.04] hover:text-white/70"
+                    disabled={ isSaving }
+                    icon={ <RotateCcw className="h-3.5 w-3.5" aria-hidden="true"/> }
+                    onClick={ resetHalo }
+                    variant="ghost"
+                  />
+                </div>
               </div>
             </div>
 
@@ -266,6 +279,7 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
 
           <aside className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
             <MinecraftSkinViewer
+              halo={ formState.halo === HALO_UNSET ? null : formState.halo }
               height={ 360 }
               nameTag={ previewNameTag }
               scale={ previewScale }

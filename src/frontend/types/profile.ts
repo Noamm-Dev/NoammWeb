@@ -15,11 +15,13 @@ export interface SliderConfig {
 export interface ProfilePlayer {
   aliases: string[]
   displayName: string | null
+  halo: number | null
   scale: Scale | null
   username: string | null
   uuid: string
   hasName?: boolean
   hasSize?: boolean
+  hasHalo?: boolean
 }
 
 export interface AuthUser {

@@ -20,6 +20,7 @@ function buildPlayer(uuid: string, username: string | null): ProfilePlayer {
   return {
     aliases: username ? [ username ] : [],
     displayName: null,
+    halo: null,
     scale: null,
     username,
     uuid
