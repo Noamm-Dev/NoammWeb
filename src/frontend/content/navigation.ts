@@ -6,10 +6,16 @@ export interface NavigationItem {
 
 export const NAVIGATION_ITEMS: NavigationItem[] = [
   {
+    activePaths: [ "/" ],
+    href: "/",
+    label: "Home"
+  },
+  /*
+  {
     activePaths: [ "/database" ],
     href: "/database",
     label: "Dashboard"
-  },
+  },*/
   {
     activePaths: [ "/login", "/me" ],
     href: "/me",
