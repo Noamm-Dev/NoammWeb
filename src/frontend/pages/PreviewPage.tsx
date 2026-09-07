@@ -68,7 +68,6 @@ export function PreviewPage() {
   const requestedUsername = debouncedUsername.trim() || PREVIEW_USERNAME
   const previewUsername = isMinecraftUsername(requestedUsername) ? requestedUsername : PREVIEW_USERNAME
   const previewScale = parsedScale.error === null ? parsedScale.value : DEFAULT_SCALE
-  const nameTag = customName.trim() || previewUsername
   const encodedPreviewUsername = encodeURIComponent(previewUsername)
   const skinUrl = `https://mc-heads.net/skin/${ encodedPreviewUsername }`
 
@@ -184,7 +183,6 @@ export function PreviewPage() {
                   key={ skinUrl }
                   halo={ halo }
                   height={ 320 }
-                  nameTag={ nameTag }
                   scale={ previewScale }
                   skinUrl={ skinUrl }
                   width={ 320 }

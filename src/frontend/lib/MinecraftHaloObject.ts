@@ -22,7 +22,7 @@ export class MinecraftHaloObject extends Group {
 
     for (const [ x, z ] of HALO_PIXELS) {
       const pixel = new Mesh(this.geometry, this.material)
-      pixel.position.set(x, 0, z)
+      pixel.position.set(x + 0.5, 0, z + 0.5)
       this.add(pixel)
     }
 
