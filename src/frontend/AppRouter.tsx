@@ -7,6 +7,7 @@ const LoginPage = lazy(() => import("./pages/LoginPage").then((module) => ({ def
 const MePage = lazy(() => import("./pages/MePage").then((module) => ({ default: module.MePage })))
 const DatabaseAdminPage = lazy(() => import("./pages/DatabaseAdminPage").then((module) => ({ default: module.DatabaseAdminPage })))
 const PreviewPage = lazy(() => import("./pages/PreviewPage").then((module) => ({ default: module.PreviewPage })))
+const SyncthingSetupPage = lazy(() => import("./pages/guide/SyncthingSetupPage").then((module) => ({ default: module.default })))
 
 function NavigationPage({ children }: { children: ReactNode }) {
   return (
@@ -28,7 +29,7 @@ export function AppRouter() {
         <Route path="/me" element={ <MePage/> }/>
         <Route path="/database" element={ <NavigationPage><DatabaseAdminPage/></NavigationPage> }/>
         <Route path="/preview" element={ <NavigationPage><PreviewPage/></NavigationPage> }/>
-        <Route path="/admin" element={ <Navigate replace to="/database"/> }/>
+        <Route path="/guide/syncthing" element={ <SyncthingSetupPage/> }/>
         <Route path="*" element={ <Navigate replace to="/"/> }/>
       </Routes>
     </Suspense>
