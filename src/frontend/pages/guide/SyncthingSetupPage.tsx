@@ -9,7 +9,7 @@ export default function SyncthingSetupPage() {
     <div className="mx-auto max-w-3xl py-4">
       <h2 className="sr-only">Step-by-step guide to setting up Syncthing on Windows and a Linux VPS</h2>
 
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-6 flex flex-wrap justify-center gap-2">
         <button
           className={ `cursor-pointer rounded-md border px-4 py-2 font-sans text-sm transition ${
             activeTab === "windows"
