@@ -1,5 +1,17 @@
 import noammProfile from "../assets/noamm-profile.jpg"
 
+const birthDay = new Date(2007, 7, 26) // month starts from 0. aka 0-11
+
+function calculateAge(birthDate: Date): number {
+  const today = new Date()
+  let age = today.getFullYear() - birthDate.getFullYear()
+  const monthDiff = today.getMonth() - birthDate.getMonth()
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age --
+
+  return age
+}
+
 export type HomeTab = "links" | "projects" | "extras"
 
 export interface HomeAction {
@@ -15,7 +27,7 @@ export const HOME_PROFILE = {
 }
 
 export const HOME_INFO_ITEMS = [
-  { label: "Age", value: "18" },
+  { label: "Age", value: String(calculateAge(birthDay)) },
   { label: "Pronouns", value: "He/Him" },
   { label: "Location", value: "Israel" }
 ]

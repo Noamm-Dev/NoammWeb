@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom"
 import { useState } from "react"
-import { SiteCredit } from "../components/SiteCredit"
 import { HOME_ACTIONS, HOME_INFO_ITEMS, HOME_PROFILE, HOME_TABS, HOME_TAGS, type HomeAction, type HomeTab } from "../content/home"
 
 function HomeActionLink({ href, label, target }: HomeAction) {
@@ -65,7 +64,7 @@ export function HomePage() {
         </nav>
 
         <div className="flex min-h-[310px] flex-col justify-start">
-          {activeTab === "links" ? (
+          { activeTab === "links" ? (
             <div className="animate-panel-in">
               <div className="mb-4 grid grid-cols-3 gap-2.5">
                 { HOME_INFO_ITEMS.map((item) => (
@@ -110,8 +109,6 @@ export function HomePage() {
             </div>
           ) : null }
         </div>
-
-        <SiteCredit className="mt-8"/>
       </section>
     </main>
   )
