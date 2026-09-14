@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": [],
+  "rules": [
+    { "glob": "/assets/*", "allow": true },
+    { "glob": "/*", "allow": false, "stage": "wa", "set_headers": { "/*": "/index.html" } }
+  ]
+}
