@@ -1,9 +1,19 @@
-import { defineConfig } from "vite"
+import { defineConfig, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
+import { copyFileSync } from "node:fs"
+import { resolve } from "node:path"
+
+// Cloudflare only falls back to index.html when there's no 404.html, so shipping one makes unknown paths real 404s.
+// It's the same SPA shell, so the router renders NotFoundPage for them.
+const notFoundPage = (): Plugin => ({
+  name: "not-found-page",
+  apply: "build",
+  writeBundle: ({ dir = "dist" }) => copyFileSync(resolve(dir, "index.html"), resolve(dir, "404.html"))
+})
 
 export default defineConfig({
-  plugins: [ react(), tailwindcss() ],
+  plugins: [ react(), tailwindcss(), notFoundPage() ],
   server: {
     proxy: {
       "/api": {

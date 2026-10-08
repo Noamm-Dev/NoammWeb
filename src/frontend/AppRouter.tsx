@@ -1,5 +1,5 @@
 import { lazy, type ReactNode, Suspense } from "react"
-import { Navigate, Route, Routes } from "react-router-dom"
+import { Route, Routes } from "react-router-dom"
 import { AppNavigation } from "./components/AppNavigation"
 
 const HomePage = lazy(() => import("./pages/HomePage").then((module) => ({ default: module.HomePage })))
@@ -8,6 +8,7 @@ const MePage = lazy(() => import("./pages/MePage").then((module) => ({ default: 
 const DatabaseAdminPage = lazy(() => import("./pages/DatabaseAdminPage").then((module) => ({ default: module.DatabaseAdminPage })))
 const PreviewPage = lazy(() => import("./pages/PreviewPage").then((module) => ({ default: module.PreviewPage })))
 const SyncthingSetupPage = lazy(() => import("./pages/guide/SyncthingSetupPage").then((module) => ({ default: module.default })))
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage").then((module) => ({ default: module.NotFoundPage })))
 
 function NavigationPage({ children }: { children: ReactNode }) {
   return (
@@ -30,7 +31,7 @@ export function AppRouter() {
         <Route path="/database" element={ <NavigationPage><DatabaseAdminPage/></NavigationPage> }/>
         <Route path="/preview" element={ <NavigationPage><PreviewPage/></NavigationPage> }/>
         <Route path="/guide/syncthing" element={ <SyncthingSetupPage/> }/>
-        <Route path="*" element={ <Navigate replace to="/"/> }/>
+        <Route path="*" element={ <NavigationPage><NotFoundPage/></NavigationPage> }/>
       </Routes>
     </Suspense>
   )
