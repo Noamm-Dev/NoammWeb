@@ -5,10 +5,10 @@ import { readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 const NOT_FOUND_META: Record<string, string> = {
-  "description": "This page doesn't exist on noamm.org.",
   "og:title": "404: Page not found",
-  "og:description": "This page doesn't exist on noamm.org.",
-  "theme-color": "#ff5555"
+  "description": "Wtf are you doing?.",
+  "og:description": "Wtf are you doing?",
+  "theme-color": "#ca0707"
 }
 
 // Cloudflare only falls back to index.html when there's no 404.html, so shipping one makes unknown paths real 404s.
@@ -39,12 +39,9 @@ export default defineConfig({
             const setCookie = proxyRes.headers["set-cookie"]
             if (! setCookie) return
 
-            const sanitized = (Array.isArray(setCookie) ? setCookie : [ setCookie ]).map((cookie) =>
-              cookie
-                .replace(/\s*;\s*Secure(?=\s*;|$)/gi, "")
-                .replace(/\s*;\s*SameSite=None(?=\s*;|$)/gi, "; SameSite=Lax")
+            proxyRes.headers["set-cookie"] = (Array.isArray(setCookie) ? setCookie : [ setCookie ]).map((cookie) =>
+              cookie.replace(/\s*;\s*Secure(?=\s*;|$)/gi, "").replace(/\s*;\s*SameSite=None(?=\s*;|$)/gi, "; SameSite=Lax")
             )
-            proxyRes.headers["set-cookie"] = sanitized
           })
         }
       }
