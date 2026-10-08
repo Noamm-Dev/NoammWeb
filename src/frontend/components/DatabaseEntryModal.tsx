@@ -1,6 +1,6 @@
-import { Eraser, Hash, RotateCcw, Ruler, Save, Sparkles, Type, X } from "lucide-react"
+import { BadgeCheck, Eraser, Feather, Hash, RotateCcw, Ruler, Save, Sparkles, Type, X } from "lucide-react"
 import { type FormEvent, useEffect, useState } from "react"
-import { SLIDER_CONFIG } from "../content/database"
+import { BADGES, SLIDER_CONFIG } from "../content/database"
 import { cssRgbToHalo, HALO_DEFAULT, HALO_UNSET, haloRgbToCss, haloToCss } from "../lib/halo"
 import DatabaseEntry from "../types/DatabaseEntry"
 import { ActionButton } from "./ActionButton"
@@ -27,6 +27,8 @@ interface DatabaseFormState {
   sizeY: string,
   sizeZ: string,
   halo: number,
+  dragonWings: string,
+  badges: string[],
 }
 
 type SizeField = "sizeX" | "sizeY" | "sizeZ"
@@ -55,6 +57,10 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
   const resetSizes = () => setFormState((currentState) => ({ ...currentState, sizeX: "1.0", sizeY: "1.0", sizeZ: "1.0" }))
   const resetHalo = () => setFormState((currentState) => ({ ...currentState, halo: HALO_DEFAULT }))
   const removeHalo = () => setFormState((currentState) => ({ ...currentState, halo: HALO_UNSET }))
+  const toggleBadge = (badge: string) => setFormState((currentState) => ({
+    ...currentState,
+    badges: currentState.badges.includes(badge) ? currentState.badges.filter((it) => it !== badge) : [ ...currentState.badges, badge ]
+  }))
 
   const setHaloRgb = (rgbCss: string) => {
     const nextHalo = cssRgbToHalo(rgbCss, 255)
@@ -97,9 +103,13 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
     if (typeof parsedSizeY === "string") return setFormError(parsedSizeY)
     if (typeof parsedSizeZ === "string") return setFormError(parsedSizeZ)
 
+    const trimmedDragonWings = formState.dragonWings.trim().replace(",", ".")
+    const parsedDragonWings = trimmedDragonWings ? Number(trimmedDragonWings) : null
+    if (parsedDragonWings !== null && ! Number.isFinite(parsedDragonWings)) return setFormError("Dragon wings must be a valid number.")
+
     setFormError(null)
 
-    const apiError = await onSubmit(uuid, new DatabaseEntry(formState.name, parsedSizeX, parsedSizeY, parsedSizeZ, formState.halo))
+    const apiError = await onSubmit(uuid, new DatabaseEntry(formState.name, parsedSizeX, parsedSizeY, parsedSizeZ, formState.halo, parsedDragonWings, formState.badges))
 
     if (apiError) setFormError(apiError)
   }
@@ -219,6 +229,57 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
               </div>
             </div>
 
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                <TextField
+                  autoComplete="off"
+                  className="text-center font-semibold"
+                  icon={ <Feather className="h-3.5 w-3.5" aria-hidden="true"/> }
+                  inputMode="decimal"
+                  label="Dragon Wings"
+                  onChange={ (event) => updateField("dragonWings", event.target.value.replace(/,/g, ".")) }
+                  placeholder="No wings"
+                  type="text"
+                  value={ formState.dragonWings }
+                />
+                { formState.dragonWings ? (
+                  <ActionButton
+                    aria-label="Remove dragon wings"
+                    className="mt-[22px] h-[46px] min-h-[46px] w-9 rounded-xl border-transparent bg-transparent px-0 py-0 text-white/42 hover:bg-white/[0.04] hover:text-red-200/80"
+                    disabled={ isSaving }
+                    icon={ <Eraser className="h-3.5 w-3.5" aria-hidden="true"/> }
+                    onClick={ () => updateField("dragonWings", "") }
+                    variant="ghost"
+                  />
+                ) : null }
+              </div>
+
+              <div>
+                <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-white/60">
+                  <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true"/>
+                  <span>Badges</span>
+                </span>
+                <div className="flex min-h-[46px] flex-wrap items-center gap-2">
+                  { BADGES.map((badge) => (
+                    <button
+                      aria-pressed={ formState.badges.includes(badge) }
+                      className={ `rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                        formState.badges.includes(badge)
+                          ? "border-yellow-200/30 bg-yellow-300/15 text-yellow-100"
+                          : "border-white/10 bg-white/[0.035] text-white/40 hover:border-white/20 hover:text-white/65"
+                      }` }
+                      disabled={ isSaving }
+                      key={ badge }
+                      onClick={ () => toggleBadge(badge) }
+                      type="button"
+                    >
+                      { badge }
+                    </button>
+                  )) }
+                </div>
+              </div>
+            </div>
+
             <div className="h-px bg-white/10"/>
 
             <div className="grid gap-4 sm:grid-cols-3">
@@ -320,6 +381,8 @@ function buildFormState(uuid: string | undefined, entry: DatabaseEntry | undefin
     sizeY: formatSize(entry?.getSizeY()),
     sizeZ: formatSize(entry?.getSizeZ()),
     halo: entry?.getHalo() ?? HALO_DEFAULT,
+    dragonWings: entry?.getDragonWings()?.toString() ?? "",
+    badges: [ ...(entry?.getBadges() ?? []) ],
     uuid: uuid ?? ""
   }
 }

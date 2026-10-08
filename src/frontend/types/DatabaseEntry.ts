@@ -14,15 +14,19 @@ export interface DatabaseOwner {
   hasName: boolean
   hasSize: boolean
   hasHalo: boolean
+  hasDragonWings: boolean
+  hasBadges: boolean
 }
 
 export const databaseOwnerFromUnknown = (value: unknown): DatabaseOwner => {
-  if (! isJsonRecord(value)) return { hasName: false, hasSize: false, hasHalo: false }
+  if (! isJsonRecord(value)) return { hasName: false, hasSize: false, hasHalo: false, hasDragonWings: false, hasBadges: false }
 
   return {
     hasName: value.hasName === true,
     hasSize: value.hasSize === true,
-    hasHalo: value.hasHalo === true
+    hasHalo: value.hasHalo === true,
+    hasDragonWings: value.hasDragonWings === true,
+    hasBadges: value.hasBadges === true
   }
 }
 
@@ -37,13 +41,17 @@ export default class DatabaseEntry {
   private sizeY: number
   private sizeZ: number
   private halo: number
+  private dragonWings: number | null
+  private badges: string[]
 
-  constructor(name: string | null = null, sizeX: number | null = null, sizeY: number | null = null, sizeZ: number | null = null, halo: number | null = null) {
+  constructor(name: string | null = null, sizeX: number | null = null, sizeY: number | null = null, sizeZ: number | null = null, halo: number | null = null, dragonWings: number | null = null, badges: string[] | null = null) {
     this.name = name ?? ""
     this.sizeX = DatabaseEntry.readSize(sizeX)
     this.sizeY = DatabaseEntry.readSize(sizeY)
     this.sizeZ = DatabaseEntry.readSize(sizeZ)
     this.halo = DatabaseEntry.readHalo(halo)
+    this.dragonWings = DatabaseEntry.readDragonWings(dragonWings)
+    this.badges = DatabaseEntry.readBadges(badges)
   }
 
   static fromUnknown(value: unknown) {
@@ -55,7 +63,9 @@ export default class DatabaseEntry {
       DatabaseEntry.readSize(value.sizeX),
       DatabaseEntry.readSize(value.sizeY),
       DatabaseEntry.readSize(value.sizeZ),
-      DatabaseEntry.readHalo(value.halo)
+      DatabaseEntry.readHalo(value.halo),
+      DatabaseEntry.readDragonWings(value.dragonWings),
+      DatabaseEntry.readBadges(value.badges)
     )
   }
 
@@ -76,6 +86,16 @@ export default class DatabaseEntry {
   private static readHalo(value: unknown) {
     if (typeof value !== "number" || ! Number.isInteger(value)) return HALO_UNSET
     return value
+  }
+
+  private static readDragonWings(value: unknown) {
+    if (typeof value !== "number") return null
+    return Number.isFinite(value) ? value : null
+  }
+
+  private static readBadges(value: unknown) {
+    if (! Array.isArray(value)) return []
+    return value.filter((badge): badge is string => typeof badge === "string")
   }
 
   getName() {
@@ -102,6 +122,14 @@ export default class DatabaseEntry {
 
   getHalo() {
     return this.halo
+  }
+
+  getDragonWings() {
+    return this.dragonWings
+  }
+
+  getBadges() {
+    return this.badges
   }
 
   setName(customName: string) {
@@ -175,11 +203,13 @@ export default class DatabaseEntry {
       sizeX: this.sizeX,
       sizeY: this.sizeY,
       sizeZ: this.sizeZ,
-      halo: this.hasCustomHalo() ? this.halo : null
+      halo: this.hasCustomHalo() ? this.halo : null,
+      dragonWings: this.dragonWings,
+      badges: this.badges
     }
   }
 
   copy() {
-    return new DatabaseEntry(this.name, this.sizeX, this.sizeY, this.sizeZ, this.halo)
+    return new DatabaseEntry(this.name, this.sizeX, this.sizeY, this.sizeZ, this.halo, this.dragonWings, [ ...this.badges ])
   }
 }

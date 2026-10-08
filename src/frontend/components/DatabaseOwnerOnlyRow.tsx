@@ -1,5 +1,6 @@
 import { type KeyboardEvent, memo, type MouseEvent } from "react"
 import { Crown, Sparkles, TimerReset, Trash2 } from "lucide-react"
+import { OWNER_PERMISSIONS } from "../content/database"
 import { ActionButton } from "./ActionButton"
 import type { DatabaseOwner } from "../types/DatabaseEntry"
 
@@ -76,27 +77,18 @@ export const DatabaseOwnerOnlyRow = memo(({ isClearingRateLimit, isDeleting, onC
           Owner without entry
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <span className={ `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${
-            owner.hasName
-              ? "border-cyan-300/20 bg-cyan-300/[0.075] text-cyan-100/85"
-              : "border-white/10 bg-white/[0.035] text-white/34"
-          }` }>
-            hasName
-          </span>
-          <span className={ `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${
-            owner.hasSize
-              ? "border-cyan-300/20 bg-cyan-300/[0.075] text-cyan-100/85"
-              : "border-white/10 bg-white/[0.035] text-white/34"
-          }` }>
-            hasSize
-          </span>
-          <span className={ `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${
-            owner.hasHalo
-              ? "border-cyan-300/20 bg-cyan-300/[0.075] text-cyan-100/85"
-              : "border-white/10 bg-white/[0.035] text-white/34"
-          }` }>
-            hasHalo
-          </span>
+          { OWNER_PERMISSIONS.map((permission) => (
+            <span
+              className={ `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                owner[permission]
+                  ? "border-cyan-300/20 bg-cyan-300/[0.075] text-cyan-100/85"
+                  : "border-white/10 bg-white/[0.035] text-white/34"
+              }` }
+              key={ permission }
+            >
+              { permission }
+            </span>
+          )) }
         </div>
       </div>
     </article>

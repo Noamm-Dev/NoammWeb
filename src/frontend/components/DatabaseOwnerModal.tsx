@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react"
 import { Hash, Save, ShieldCheck, X } from "lucide-react"
-import { DEFAULT_SCALE } from "../content/database"
+import { DEFAULT_OWNER, DEFAULT_SCALE, OWNER_PERMISSIONS } from "../content/database"
 import type { DatabaseOwner } from "../types/DatabaseEntry"
 import { ActionButton } from "./ActionButton"
 import { MinecraftSkinViewer } from "./MinecraftSkinViewer"
@@ -8,11 +8,8 @@ import { StatusBanner } from "./StatusBanner"
 import { TextField } from "./TextField"
 import MinecraftApi from "../lib/MinecraftApi"
 
-export interface DatabaseOwnerPayload {
+export interface DatabaseOwnerPayload extends DatabaseOwner {
   uuid: string
-  hasName: boolean
-  hasSize: boolean
-  hasHalo: boolean
 }
 
 interface DatabaseOwnerModalProps {
@@ -27,9 +24,7 @@ interface DatabaseOwnerModalProps {
 export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, onClose, onSubmit, uuidReadOnly = false }: DatabaseOwnerModalProps) {
   const [ uuid, setUuid ] = useState(initialUuid)
   const [ debouncedUuid, setDebouncedUuid ] = useState(initialUuid)
-  const [ hasName, setHasName ] = useState(initialOwner?.hasName ?? false)
-  const [ hasSize, setHasSize ] = useState(initialOwner?.hasSize ?? false)
-  const [ hasHalo, setHasHalo ] = useState(initialOwner?.hasHalo ?? false)
+  const [ permissions, setPermissions ] = useState<DatabaseOwner>(initialOwner ?? DEFAULT_OWNER)
   const [ formError, setFormError ] = useState<string | null>(null)
   const [ isResolving, setIsResolving ] = useState(false)
 
@@ -92,7 +87,7 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
     else if (! MinecraftApi.isMinecraftUuid(uuid)) return setFormError("Enter a valid Minecraft username or UUID.")
     else uuid = MinecraftApi.dashedUUID(uuid) || uuid
 
-    const apiError = await onSubmit({ uuid, hasName, hasSize, hasHalo })
+    const apiError = await onSubmit({ ...permissions, uuid })
 
     if (apiError) setFormError(apiError)
   }
@@ -154,44 +149,23 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
               />
 
               <div className="grid gap-3 sm:grid-cols-3">
-                <label className="flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]">
-                  <input
-                    checked={ hasName }
-                    className="h-4 w-4 accent-cyan-300"
-                    onChange={ (event) => setHasName(event.target.checked) }
-                    type="checkbox"
-                  />
-                  <span className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-cyan-200" aria-hidden="true"/>
-                    <span>hasName</span>
-                  </span>
-                </label>
-
-                <label className="flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]">
-                  <input
-                    checked={ hasSize }
-                    className="h-4 w-4 accent-cyan-300"
-                    onChange={ (event) => setHasSize(event.target.checked) }
-                    type="checkbox"
-                  />
-                  <span className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-cyan-200" aria-hidden="true"/>
-                    <span>hasSize</span>
-                  </span>
-                </label>
-
-                <label className="flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]">
-                  <input
-                    checked={ hasHalo }
-                    className="h-4 w-4 accent-cyan-300"
-                    onChange={ (event) => setHasHalo(event.target.checked) }
-                    type="checkbox"
-                  />
-                  <span className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-cyan-200" aria-hidden="true"/>
-                    <span>hasHalo</span>
-                  </span>
-                </label>
+                { OWNER_PERMISSIONS.map((permission) => (
+                  <label
+                    className="flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]"
+                    key={ permission }
+                  >
+                    <input
+                      checked={ permissions[permission] }
+                      className="h-4 w-4 accent-cyan-300"
+                      onChange={ (event) => setPermissions((current) => ({ ...current, [permission]: event.target.checked })) }
+                      type="checkbox"
+                    />
+                    <span className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-cyan-200" aria-hidden="true"/>
+                      <span>{ permission }</span>
+                    </span>
+                  </label>
+                )) }
               </div>
             </div>
 

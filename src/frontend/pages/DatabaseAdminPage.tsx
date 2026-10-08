@@ -8,6 +8,7 @@ import { DatabaseEntryRow } from "../components/DatabaseEntryRow"
 import { DatabaseOwnerOnlyRow } from "../components/DatabaseOwnerOnlyRow"
 import { DatabaseOwnerModal, type DatabaseOwnerPayload } from "../components/DatabaseOwnerModal"
 import { SiteCredit } from "../components/SiteCredit"
+import { DEFAULT_OWNER, OWNER_PERMISSIONS } from "../content/database"
 import { TextField } from "../components/TextField"
 import MinecraftApi, { type MinecraftProfile } from "../lib/MinecraftApi"
 import { getPlainMinecraftText } from "../lib/minecraft-text"
@@ -31,8 +32,6 @@ const DELETE_CONFIRM_LABELS = [
   "Are you reallyyyy sure?",
   "Are you really really sure?"
 ] as const
-
-const DEFAULT_OWNER: DatabaseOwner = { hasName: false, hasSize: false, hasHalo: false }
 
 interface DatabaseMenuContentProps {
   isLoading: boolean
@@ -431,15 +430,11 @@ export function DatabaseAdminPage() {
     setSuccessMessage(null)
 
     try {
-      const owner: DatabaseOwner = {
-        hasName: payload.hasName,
-        hasSize: payload.hasSize,
-        hasHalo: payload.hasHalo
-      }
+      const { uuid, ...owner } = payload
 
-      await NoammApi.saveOwner(payload.uuid, owner)
+      await NoammApi.saveOwner(uuid, owner)
 
-      setOwners((currentOwners) => ({ ...currentOwners, [payload.uuid]: owner }))
+      setOwners((currentOwners) => ({ ...currentOwners, [uuid]: owner }))
       setOwnerDialog(null)
       setErrorMessage(null)
       setSuccessMessage("Owner saved.")
@@ -883,27 +878,18 @@ export function DatabaseAdminPage() {
                 { ownerDeleteDialog.uuid }
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <span className={ `inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
-                  ownerDeleteDialog.owner.hasName
-                    ? "border-cyan-300/20 bg-cyan-300/[0.075] text-cyan-100/85"
-                    : "border-white/10 bg-white/[0.035] text-white/34"
-                }` }>
-                  hasName
-                </span>
-                <span className={ `inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
-                  ownerDeleteDialog.owner.hasSize
-                    ? "border-cyan-300/20 bg-cyan-300/[0.075] text-cyan-100/85"
-                    : "border-white/10 bg-white/[0.035] text-white/34"
-                }` }>
-                  hasSize
-                </span>
-                <span className={ `inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
-                  ownerDeleteDialog.owner.hasHalo
-                    ? "border-cyan-300/20 bg-cyan-300/[0.075] text-cyan-100/85"
-                    : "border-white/10 bg-white/[0.035] text-white/34"
-                }` }>
-                  hasHalo
-                </span>
+                { OWNER_PERMISSIONS.map((permission) => (
+                  <span
+                    className={ `inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                      ownerDeleteDialog.owner[permission]
+                        ? "border-cyan-300/20 bg-cyan-300/[0.075] text-cyan-100/85"
+                        : "border-white/10 bg-white/[0.035] text-white/34"
+                    }` }
+                    key={ permission }
+                  >
+                    { permission }
+                  </span>
+                )) }
               </div>
             </div>
 

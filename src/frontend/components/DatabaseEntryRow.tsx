@@ -1,6 +1,7 @@
-import { Save, Settings, ShieldCheck, TimerReset, Trash2, X } from "lucide-react"
+import { BadgeCheck, Feather, Save, Settings, ShieldCheck, TimerReset, Trash2, X } from "lucide-react"
 import { type CSSProperties, type FormEvent, type KeyboardEvent, memo, type MouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
+import { DEFAULT_OWNER, OWNER_PERMISSIONS } from "../content/database"
 import { haloToCss, haloToRgba } from "../lib/halo"
 import { ActionButton } from "./ActionButton"
 import { MinecraftTextPreview } from "./MinecraftTextPreview"
@@ -43,8 +44,6 @@ function buildSizeTags(entry: DatabaseEntry): SizeTag[] {
   return tags
 }
 
-const DEFAULT_OWNER: DatabaseOwner = { hasName: false, hasSize: false, hasHalo: false }
-
 const DELETE_CONFIRM_LABELS = [
   "Are you sure?",
   "Are you reallyyyy sure?",
@@ -83,9 +82,7 @@ export const DatabaseEntryRow = memo(({
   const [ isSettingsMenuOpen, setIsSettingsMenuOpen ] = useState(false)
   const [ isDeleteConfirming, setIsDeleteConfirming ] = useState(false)
   const [ deleteConfirmStep, setDeleteConfirmStep ] = useState(0)
-  const [ hasName, setHasName ] = useState(owner.hasName)
-  const [ hasSize, setHasSize ] = useState(owner.hasSize)
-  const [ hasHalo, setHasHalo ] = useState(owner.hasHalo)
+  const [ permissions, setPermissions ] = useState(owner)
   const [ formError, setFormError ] = useState<string | null>(null)
   const [ settingsMenuPosition, setSettingsMenuPosition ] = useState<SettingsMenuPosition | null>(null)
 
@@ -133,10 +130,8 @@ export const DatabaseEntryRow = memo(({
 
   useEffect(() => {
     if (isSettingsMenuOpen) return
-    setHasName(owner.hasName)
-    setHasSize(owner.hasSize)
-    setHasHalo(owner.hasHalo)
-  }, [ isSettingsMenuOpen, owner.hasHalo, owner.hasName, owner.hasSize ])
+    setPermissions(owner)
+  }, [ isSettingsMenuOpen, owner ])
 
   useEffect(() => {
     if (! isSettingsMenuOpen) return
@@ -201,9 +196,7 @@ export const DatabaseEntryRow = memo(({
     event.stopPropagation()
     if (! canConfigureOwner || isBusy) return
 
-    setHasName(owner.hasName)
-    setHasSize(owner.hasSize)
-    setHasHalo(owner.hasHalo)
+    setPermissions(owner)
     setFormError(null)
     setIsDeleteConfirming(false)
     setDeleteConfirmStep(0)
@@ -216,7 +209,7 @@ export const DatabaseEntryRow = memo(({
     if (! onSaveOwner) return
 
     setFormError(null)
-    const apiError = await onSaveOwner(uuid, { hasName, hasSize, hasHalo })
+    const apiError = await onSaveOwner(uuid, permissions)
     if (apiError) {
       setFormError(apiError)
       return
@@ -348,47 +341,24 @@ export const DatabaseEntryRow = memo(({
           </div>
 
           <form className="grid gap-3" onSubmit={ handleSaveOwner }>
-            <label className="flex min-h-11 items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]">
-              <input
-                checked={ hasName }
-                className="h-4 w-4 accent-cyan-300"
-                disabled={ isBusy }
-                onChange={ (event) => setHasName(event.target.checked) }
-                type="checkbox"
-              />
-              <span className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-cyan-200" aria-hidden="true"/>
-                <span>hasName</span>
-              </span>
-            </label>
-
-            <label className="flex min-h-11 items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]">
-              <input
-                checked={ hasSize }
-                className="h-4 w-4 accent-cyan-300"
-                disabled={ isBusy }
-                onChange={ (event) => setHasSize(event.target.checked) }
-                type="checkbox"
-              />
-              <span className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-cyan-200" aria-hidden="true"/>
-                <span>hasSize</span>
-              </span>
-            </label>
-
-            <label className="flex min-h-11 items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]">
-              <input
-                checked={ hasHalo }
-                className="h-4 w-4 accent-cyan-300"
-                disabled={ isBusy }
-                onChange={ (event) => setHasHalo(event.target.checked) }
-                type="checkbox"
-              />
-              <span className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-cyan-200" aria-hidden="true"/>
-                <span>hasHalo</span>
-              </span>
-            </label>
+            { OWNER_PERMISSIONS.map((permission) => (
+              <label
+                className="flex min-h-11 items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]"
+                key={ permission }
+              >
+                <input
+                  checked={ permissions[permission] }
+                  className="h-4 w-4 accent-cyan-300"
+                  disabled={ isBusy }
+                  onChange={ (event) => setPermissions((current) => ({ ...current, [permission]: event.target.checked })) }
+                  type="checkbox"
+                />
+                <span className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-cyan-200" aria-hidden="true"/>
+                  <span>{ permission }</span>
+                </span>
+              </label>
+            )) }
 
             <StatusBanner message={ formError } tone="error"/>
 
@@ -484,6 +454,23 @@ export const DatabaseEntryRow = memo(({
               <span className="font-mono text-[11px] text-white/55">{ haloToCss(entry.getHalo()) }</span>
             </span>
           ) : null }
+
+          { entry.getDragonWings() !== null ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-xs font-semibold text-white/38">
+              <Feather className="h-3 w-3" aria-hidden="true"/>
+              <span className="font-mono text-[11px] text-white/55">{ entry.getDragonWings() }</span>
+            </span>
+          ) : null }
+
+          { entry.getBadges().map((badge) => (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full border border-yellow-200/20 bg-yellow-300/10 px-2.5 py-1 text-xs font-semibold text-yellow-100/85"
+              key={ badge }
+            >
+              <BadgeCheck className="h-3 w-3" aria-hidden="true"/>
+              <span>{ badge }</span>
+            </span>
+          )) }
         </div>
 
         { canConfigureOwner ? (

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://noamm.org/sitemap.xml
