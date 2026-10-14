@@ -116,7 +116,6 @@ export function DatabaseAdminPage() {
   const [ minecraftLookup, setMinecraftLookup ] = useState<MinecraftLookupState | null>(null)
   const [ isRunningUpdate, setIsRunningUpdate ] = useState(false)
   const [ updateLog, setUpdateLog ] = useState<string[]>([])
-  const [ clearingRateLimitUuid, setClearingRateLimitUuid ] = useState<string | null>(null)
   const [ errorMessage, setErrorMessage ] = useState<string | null>(null)
   const [ successMessage, setSuccessMessage ] = useState<string | null>(null)
 
@@ -572,25 +571,6 @@ export function DatabaseAdminPage() {
     }
   }, [ clearSession, ownerDeleteConfirmStep, ownerDeleteDialog ])
 
-  const handleClearRateLimit = useCallback(async (uuid: string) => {
-    if (clearingRateLimitUuid) return
-    setClearingRateLimitUuid(uuid)
-    setErrorMessage(null)
-    setSuccessMessage(null)
-
-    try {
-      await NoammApi.clearRateLimit(uuid)
-      setSuccessMessage("Rate limit cleared.")
-    }
-    catch (error) {
-      if (error instanceof NoammApiError && error.status === 401) clearSession()
-      setErrorMessage(getErrorMessage(error))
-    }
-    finally {
-      setClearingRateLimitUuid(null)
-    }
-  }, [ clearSession, clearingRateLimitUuid ])
-
   const handleRunUpdate = useCallback(async () => {
     if (isRunningUpdate) return
     setIsRunningUpdate(true)
@@ -753,11 +733,9 @@ export function DatabaseAdminPage() {
                 { filteredEntries.map((item) => (
                   <DatabaseEntryRow
                     entry={ item.entry }
-                    isClearingRateLimit={ clearingRateLimitUuid === item.uuid }
                     isDeletingEntry={ deletingUuid === item.uuid }
                     isSavingOwner={ isSavingOwner }
                     key={ item.uuid }
-                    onClearRateLimit={ handleClearRateLimit }
                     onDeleteEntry={ handleDeleteEntryFromSettings }
                     onEdit={ handleEditEntry }
                     onSaveOwner={ handleSaveEntryOwnerSettings }
@@ -767,10 +745,8 @@ export function DatabaseAdminPage() {
                 )) }
                 { filteredOwnerOnlyItems.map((item) => (
                   <DatabaseOwnerOnlyRow
-                    isClearingRateLimit={ clearingRateLimitUuid === item.uuid }
                     isDeleting={ deletingOwnerUuid === item.uuid }
                     key={ `owner-${ item.uuid }` }
-                    onClearRateLimit={ handleClearRateLimit }
                     onDelete={ handleDeleteOwner }
                     onEditEntry={ handleCreateEntryFromOwner }
                     owner={ item.owner }

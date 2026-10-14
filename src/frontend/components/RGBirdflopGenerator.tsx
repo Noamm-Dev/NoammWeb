@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Bold, Italic, Plus, Trash2 } from "lucide-react"
-import { generateOutput, rgbDefaults } from "@birdflop/rgbirdflop"
-import { getPlainMinecraftText } from "../lib/minecraft-text"
+import type { NameSegment } from "../types/NameSegment"
 import { MinecraftTextPreview } from "./MinecraftTextPreview"
 
 interface RGBirdflopGeneratorProps {
@@ -9,19 +8,11 @@ interface RGBirdflopGeneratorProps {
   previewEmptyLabel?: string
   previewValue?: string
   initialText?: string
-  initialValue?: string
-  onGenerate: (output: string) => void
+  initialValue?: NameSegment[]
+  onGenerate: (segment: NameSegment) => void
 }
 
 type RGBColorStop = { hex: string, pos: number }
-
-type StoredRun = {
-  bold: boolean
-  color: string | null
-  italic: boolean
-  shadowColor: string | null
-  text: string
-}
 
 type GeneratorState = {
   bold: boolean
@@ -46,118 +37,18 @@ const defaultGeneratorState = (text: string): GeneratorState => ({
   text
 })
 
-const normalizeHexColor = (value: unknown, fallback: string | null) => {
-  if (typeof value !== "string") return fallback
-  const raw = value.trim()
-  if (! raw) return fallback
-  if (/^#[0-9a-f]{3}$/i.test(raw)) {
-    const hex = raw.slice(1)
-    return `#${ hex[0] }${ hex[0] }${ hex[1] }${ hex[1] }${ hex[2] }${ hex[2] }`.toUpperCase()
-  }
-  if (/^#[0-9a-f]{6}$/i.test(raw) || /^#[0-9a-f]{8}$/i.test(raw)) return raw.toUpperCase()
-  return fallback
-}
+// The editor holds a single gradient, so a name made of several segments is flattened into the first one's style.
+const buildInitialState = (initialValue: NameSegment[] | undefined, initialText: string): GeneratorState => {
+  const first = initialValue?.[0]
+  if (! initialValue || ! first) return defaultGeneratorState(initialText.trim())
 
-const shadowColorToHex = (value: unknown, fallback: string | null): string | null => {
-  if (Array.isArray(value) && value.length >= 3) {
-    const toHex = (c: unknown) => Math.round((Number(c) || 0) * 255).toString(16).padStart(2, "0")
-    return `#${ toHex(value[0]) }${ toHex(value[1]) }${ toHex(value[2]) }`.toUpperCase()
-  }
-  if (value === null || value === "") return null
-  if (typeof value === "string" && value.trim().toLowerCase() === "reset") return null
-  return normalizeHexColor(value, fallback)
-}
-
-const collectStoredRuns = (node: unknown, inherited: Omit<StoredRun, "text"> = {
-  bold: false,
-  color: null,
-  italic: false,
-  shadowColor: null
-}, runs: StoredRun[] = []): StoredRun[] => {
-  if (node === undefined || node === null) return runs
-
-  if ([ "string", "number", "boolean" ].includes(typeof node)) {
-    const text = node.toString()
-    if (text) runs.push({ ...inherited, text })
-    return runs
-  }
-
-  if (Array.isArray(node)) {
-    for (const part of node) collectStoredRuns(part, inherited, runs)
-    return runs
-  }
-
-  if (typeof node !== "object") return runs
-
-  const record = node as Record<string, unknown>
-  const currentStyle = {
-    bold: record.bold !== undefined ? Boolean(record.bold) : inherited.bold,
-    color: normalizeHexColor(record.color, inherited.color),
-    italic: record.italic !== undefined ? Boolean(record.italic) : inherited.italic,
-    shadowColor: shadowColorToHex(record.shadow_color ?? record.shadowColor, inherited.shadowColor)
-  }
-
-  if (record.text !== undefined && record.text !== null) {
-    const text = record.text.toString()
-    if (text) runs.push({ ...currentStyle, text })
-  }
-
-  if (Array.isArray(record.extra)) {
-    for (const part of record.extra) collectStoredRuns(part, currentStyle, runs)
-  }
-
-  return runs
-}
-
-const buildColorStops = (runs: StoredRun[], key: "color" | "shadowColor", fallback: RGBColorStop[]) => {
-  const totalLength = runs.reduce((sum, run) => sum + run.text.length, 0)
-  if (totalLength <= 0) return [ ...fallback ]
-
-  const stops: RGBColorStop[] = []
-  let consumedLength = 0
-  let previousColor: string | null = null
-
-  for (const run of runs) {
-    const color = run[key]
-    if (color && color !== previousColor) {
-      stops.push({ hex: color, pos: Math.round((consumedLength / totalLength) * 100) })
-      previousColor = color
-    }
-    consumedLength += run.text.length
-  }
-
-  if (stops.length === 0) return [ ...fallback ]
-  if (stops[0].pos !== 0) stops[0] = { ...stops[0], pos: 0 }
-  return stops
-}
-
-const buildInitialState = (initialValue: string | undefined, initialText: string): GeneratorState => {
-  const fallbackText = initialText.trim()
-  const rawValue = initialValue?.trim() ?? ""
-
-  if (! rawValue) return defaultGeneratorState(fallbackText)
-
-  try {
-    const parsed = JSON.parse(rawValue) as unknown
-    const runs = collectStoredRuns(parsed)
-    const plainText = getPlainMinecraftText(rawValue).trim()
-
-    if (runs.length === 0) return defaultGeneratorState(plainText || fallbackText)
-
-    const shadowColors = buildColorStops(runs, "shadowColor", DEFAULT_SHADOW_COLORS)
-
-    return {
-      bold: runs.some((run) => run.bold),
-      colors: buildColorStops(runs, "color", DEFAULT_MAIN_COLORS),
-      enableShadow: runs.some((run) => run.shadowColor !== null),
-      italic: runs.some((run) => run.italic),
-      shadowColors,
-      text: plainText || fallbackText
-    }
-  }
-  catch {
-    const plainText = getPlainMinecraftText(rawValue).trim()
-    return defaultGeneratorState(plainText || fallbackText)
+  return {
+    bold: first.bold === true,
+    colors: first.colors.length > 0 ? [ ...first.colors ] : [ ...DEFAULT_MAIN_COLORS ],
+    enableShadow: first.shadowColors.length > 0,
+    italic: first.italic === true,
+    shadowColors: first.shadowColors.length > 0 ? [ ...first.shadowColors ] : [ ...DEFAULT_SHADOW_COLORS ],
+    text: initialValue.map((segment) => segment.text).join("")
   }
 }
 
@@ -301,19 +192,7 @@ export function RGBirdflopGenerator({
 
   useEffect(() => {
     if (! text) return
-    const store = {
-      ...rgbDefaults,
-      text,
-      format: { color: "JSON" } as any,
-      colors,
-      shadowcolors: enableShadow ? shadowColors : null,
-      bold,
-      italic,
-      gradientType: "rgb",
-      disperse: false // using manual slider pos instead of automatic
-    }
-    const output = generateOutput(store)
-    onGenerate(output)
+    onGenerate({ text, colors, shadowColors: enableShadow ? shadowColors : [], bold, italic })
   }, [
     text, colors, enableShadow, shadowColors, bold, italic, onGenerate
   ])

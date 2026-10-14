@@ -30,7 +30,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "https://api.noamm.org",
+        target: "https://velox.noamm.org",
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/api/, ""),

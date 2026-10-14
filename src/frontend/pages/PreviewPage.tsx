@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { RotateCcw, Sparkles, Type, UserRound } from "lucide-react"
 import { ActionButton } from "../components/ActionButton"
 import { MinecraftSkinViewer } from "../components/MinecraftSkinViewer"
@@ -8,6 +8,7 @@ import { TextField } from "../components/TextField"
 import { DEFAULT_SCALE, SCALE_AXES, SLIDER_CONFIG } from "../content/database"
 import { cssRgbToHalo, HALO_DEFAULT, haloRgbToCss, haloToCss } from "../lib/halo"
 import type { Scale } from "../types/profile"
+import { type NameSegment, renderName } from "../types/NameSegment"
 
 type ParsedScale = { error: string, value: null } | { error: null, value: Scale }
 type ScaleAxis = typeof SCALE_AXES[number]
@@ -56,8 +57,14 @@ export function PreviewPage() {
   const [ minecraftUsername, setMinecraftUsername ] = useState(PREVIEW_USERNAME)
   const [ debouncedUsername, setDebouncedUsername ] = useState(PREVIEW_USERNAME)
   const [ customName, setCustomName ] = useState("")
+  const [ nameSegments, setNameSegments ] = useState<NameSegment[]>([])
   const [ halo, setHalo ] = useState(HALO_DEFAULT)
   const [ scaleInput, setScaleInput ] = useState<ScaleInputState>(() => scaleToScaleInput(DEFAULT_SCALE))
+
+  const handleGenerateName = useCallback((segment: NameSegment) => {
+    setNameSegments([ segment ])
+    setCustomName(renderName([ segment ]))
+  }, [])
 
   useEffect(() => {
     const handler = setTimeout(() => setDebouncedUsername(minecraftUsername), DEBOUNCE_DELAY_MS)
@@ -141,8 +148,8 @@ export function PreviewPage() {
               <RGBirdflopGenerator
                 key={ previewUsername }
                 initialText={ previewUsername }
-                initialValue={ customName }
-                onGenerate={ setCustomName }
+                initialValue={ nameSegments }
+                onGenerate={ handleGenerateName }
                 previewEmptyLabel={ previewUsername }
                 previewValue={ customName }
               />

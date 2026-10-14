@@ -3,6 +3,7 @@ import { type FormEvent, useEffect, useState } from "react"
 import { BADGES, SLIDER_CONFIG } from "../content/database"
 import { cssRgbToHalo, HALO_DEFAULT, HALO_UNSET, haloRgbToCss, haloToCss } from "../lib/halo"
 import DatabaseEntry from "../types/DatabaseEntry"
+import { type NameSegment, readNameSegments, renderName } from "../types/NameSegment"
 import { ActionButton } from "./ActionButton"
 import { MinecraftSkinViewer } from "./MinecraftSkinViewer"
 import { MinecraftTextPreview } from "./MinecraftTextPreview"
@@ -49,7 +50,8 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
     y: parsePreviewSize(formState.sizeY),
     z: parsePreviewSize(formState.sizeZ)
   }
-  const previewNameTag = formState.name.trim() || null
+  const previewName = renderName(parseName(formState.name) ?? [])
+  const previewNameTag = previewName || null
   const previewSkinUrl = `https://mc-heads.net/skin/${ encodeURIComponent(formState.uuid.trim() || "steve") }`
 
   const updateField = (field: keyof DatabaseFormState, value: string) => setFormState((currentState) => ({ ...currentState, [field]: value }))
@@ -103,13 +105,16 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
     if (typeof parsedSizeY === "string") return setFormError(parsedSizeY)
     if (typeof parsedSizeZ === "string") return setFormError(parsedSizeZ)
 
+    const parsedName = parseName(formState.name)
+    if (parsedName === null) return setFormError("Name must be valid segments JSON.")
+
     const trimmedDragonWings = formState.dragonWings.trim().replace(",", ".")
     const parsedDragonWings = trimmedDragonWings ? Number(trimmedDragonWings) : null
     if (parsedDragonWings !== null && ! Number.isFinite(parsedDragonWings)) return setFormError("Dragon wings must be a valid number.")
 
     setFormError(null)
 
-    const apiError = await onSubmit(uuid, new DatabaseEntry(formState.name, parsedSizeX, parsedSizeY, parsedSizeZ, formState.halo, parsedDragonWings, formState.badges))
+    const apiError = await onSubmit(uuid, new DatabaseEntry(parsedName, parsedSizeX, parsedSizeY, parsedSizeZ, formState.halo, parsedDragonWings, formState.badges))
 
     if (apiError) setFormError(apiError)
   }
@@ -170,9 +175,9 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
             <TextField
               autoComplete="off"
               icon={ <Type className="h-3.5 w-3.5" aria-hidden="true"/> }
-              label="Name (JSON Component)"
+              label="Name (Segments JSON)"
               onChange={ (event) => updateField("name", event.target.value) }
-              placeholder='{"text":"Noamm","color":"red"}'
+              placeholder='[{"text":"Noamm","colors":[{"hex":"#FF5555","pos":0}],"shadowColors":[]}]'
               value={ formState.name }
             />
 
@@ -183,7 +188,7 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
               </span>
               <MinecraftTextPreview
                 emptyLabel="No custom name yet"
-                value={ formState.name }
+                value={ previewName }
               />
             </div>
 
@@ -362,6 +367,17 @@ function parseSize(value: string, label: string) {
   return parsed
 }
 
+function parseName(value: string): NameSegment[] | null {
+  if (! value.trim()) return []
+
+  try {
+    return readNameSegments(JSON.parse(value))
+  }
+  catch {
+    return null
+  }
+}
+
 function parsePreviewSize(value: string) {
   const parsed = Number(value.trim().replace(",", "."))
   return Number.isFinite(parsed) ? parsed : 1
@@ -376,7 +392,7 @@ const formatSize = (value: number | undefined) => value === undefined ? "1.0" : 
 
 function buildFormState(uuid: string | undefined, entry: DatabaseEntry | undefined): DatabaseFormState {
   return {
-    name: entry?.getName() ?? "",
+    name: entry?.hasCustomName() ? JSON.stringify(entry.getNameSegments()) : "",
     sizeX: formatSize(entry?.getSizeX()),
     sizeY: formatSize(entry?.getSizeY()),
     sizeZ: formatSize(entry?.getSizeZ()),

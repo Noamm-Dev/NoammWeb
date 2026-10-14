@@ -25,7 +25,7 @@ export class NoammApiError extends Error {
 }
 
 class NoammApi {
-  readonly baseURL = import.meta.env.DEV ? "/api" : "https://api.noamm.org"
+  readonly baseURL = import.meta.env.DEV ? "/api" : "https://velox.noamm.org"
   readonly authConfig = { codeLength: 6, codeTTL: 300 }
 
   async requestMcIdCode(uuid: string) {
@@ -175,12 +175,6 @@ class NoammApi {
 
   async deleteEntry(uuid: string) {
     await this.requestText(`/database/admin/entry/${ encodeURIComponent(uuid) }`, {
-      method: "DELETE", credentials: "include"
-    })
-  }
-
-  async clearRateLimit(uuid: string) {
-    await this.requestText(`/database/admin/ratelimit/${ encodeURIComponent(uuid) }`, {
       method: "DELETE", credentials: "include"
     })
   }

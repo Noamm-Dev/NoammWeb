@@ -1,0 +1,4 @@
+[submodule "src/backend"]
+	path = src/backend
+	url = https://github.com/Noamm-Dev/Velox.git
+	update = none

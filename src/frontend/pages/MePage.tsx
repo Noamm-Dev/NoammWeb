@@ -1,11 +1,10 @@
 import { type FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Navigate, useNavigate } from "react-router-dom"
-import { LogOut, RotateCcw, Sparkles, Timer, Type } from "lucide-react"
+import { LogOut, RotateCcw, Sparkles, Timer } from "lucide-react"
 import { ActionButton } from "../components/ActionButton"
 import { MinecraftTextPreview } from "../components/MinecraftTextPreview"
 import { SiteCredit } from "../components/SiteCredit"
 import { StatusBanner } from "../components/StatusBanner"
-import { TextField } from "../components/TextField"
 import AuthSession from "../lib/AuthSession"
 import { cssRgbToHalo, HALO_DEFAULT, haloRgbToCss, haloToCss } from "../lib/halo"
 import NoammApi, { NoammApiError } from "../lib/NoammApi"
@@ -16,6 +15,7 @@ import { MinecraftSkinViewer } from "../components/MinecraftSkinViewer"
 import { DEFAULT_SCALE, SCALE_AXES, SLIDER_CONFIG } from "../content/database"
 import { formatTime, getErrorMessage } from '../utils'
 import DatabaseEntry, { type DatabaseEntryAxis } from '../types/DatabaseEntry'
+import type { NameSegment } from '../types/NameSegment'
 import { RGBirdflopGenerator } from "../components/RGBirdflopGenerator"
 
 type SessionSource = "local" | "server"
@@ -95,7 +95,7 @@ export function MePage() {
   const [ errorMessage, setErrorMessage ] = useState<string | null>(null)
   const [ successMessage, setSuccessMessage ] = useState<string | null>(null)
 
-  const handleGenerateName = useCallback((output: string) => setDatabaseEntry((entry) => entry.copy().setName(output)), [])
+  const handleGenerateName = useCallback((segment: NameSegment) => setDatabaseEntry((entry) => entry.copy().setName([ segment ])), [])
 
   const haloInputRef = useRef<HTMLInputElement | null>(null)
   const haloDebounceRef = useRef<number | null>(null)
@@ -381,7 +381,7 @@ export function MePage() {
                   <RGBirdflopGenerator
                     disabled={ isSaving }
                     initialText={ displayLabel }
-                    initialValue={ databaseEntry.getName() }
+                    initialValue={ databaseEntry.getNameSegments() }
                     onGenerate={ handleGenerateName }
                     previewEmptyLabel={ displayLabel }
                     previewValue={ databaseEntry.getName() }
@@ -400,17 +400,6 @@ export function MePage() {
                     />
                   </div>
                 ) }
-
-                <TextField
-                  autoComplete="off"
-                  disabled={ isSaving || ! canEditName }
-                  icon={ <Type className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true"/> }
-                  label="Custom Name"
-                  multiline={ false }
-                  onChange={ event => handleGenerateName(event.target.value) }
-                  placeholder={ `{"text":"${ displayLabel }","color":"#4498DB"}` }
-                  value={ databaseEntry.getName() }
-                />
               </div>
             </div>
 

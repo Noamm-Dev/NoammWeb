@@ -2,6 +2,7 @@ import type { ProfilePlayer, Scale } from "./profile"
 import { isJsonRecord } from "../utils"
 import { HALO_UNSET } from "../lib/halo"
 import { mapValues } from 'remeda'
+import { type NameSegment, readNameSegments, renderName } from "./NameSegment"
 
 export type DatabaseEntryAxis = "x" | "y" | "z"
 
@@ -36,7 +37,7 @@ export const databaseOwnersFromUnknown = (value: unknown): Record<string, Databa
 }
 
 export default class DatabaseEntry {
-  private name: string
+  private name: NameSegment[]
   private sizeX: number
   private sizeY: number
   private sizeZ: number
@@ -44,8 +45,8 @@ export default class DatabaseEntry {
   private dragonWings: number | null
   private badges: string[]
 
-  constructor(name: string | null = null, sizeX: number | null = null, sizeY: number | null = null, sizeZ: number | null = null, halo: number | null = null, dragonWings: number | null = null, badges: string[] | null = null) {
-    this.name = name ?? ""
+  constructor(name: NameSegment[] | null = null, sizeX: number | null = null, sizeY: number | null = null, sizeZ: number | null = null, halo: number | null = null, dragonWings: number | null = null, badges: string[] | null = null) {
+    this.name = name ?? []
     this.sizeX = DatabaseEntry.readSize(sizeX)
     this.sizeY = DatabaseEntry.readSize(sizeY)
     this.sizeZ = DatabaseEntry.readSize(sizeZ)
@@ -59,7 +60,7 @@ export default class DatabaseEntry {
     if (! isJsonRecord(value)) return new DatabaseEntry()
 
     return new DatabaseEntry(
-      DatabaseEntry.readName(value.name),
+      readNameSegments(value.name),
       DatabaseEntry.readSize(value.sizeX),
       DatabaseEntry.readSize(value.sizeY),
       DatabaseEntry.readSize(value.sizeZ),
@@ -72,10 +73,6 @@ export default class DatabaseEntry {
   static entriesFromUnknown(value: unknown): Record<string, DatabaseEntry> {
     if (! isJsonRecord(value)) return {}
     return mapValues(value, DatabaseEntry.fromUnknown)
-  }
-
-  private static readName(value: unknown) {
-    return typeof value === "string" ? value : ""
   }
 
   private static readSize(value: unknown) {
@@ -99,6 +96,10 @@ export default class DatabaseEntry {
   }
 
   getName() {
+    return renderName(this.name)
+  }
+
+  getNameSegments() {
     return this.name
   }
 
@@ -132,7 +133,7 @@ export default class DatabaseEntry {
     return this.badges
   }
 
-  setName(customName: string) {
+  setName(customName: NameSegment[]) {
     this.name = customName
     return this
   }
@@ -177,7 +178,7 @@ export default class DatabaseEntry {
   }
 
   hasCustomName() {
-    return Boolean(this.name.trim())
+    return this.name.length > 0
   }
 
   toScale(): Scale {
@@ -210,6 +211,6 @@ export default class DatabaseEntry {
   }
 
   copy() {
-    return new DatabaseEntry(this.name, this.sizeX, this.sizeY, this.sizeZ, this.halo, this.dragonWings, [ ...this.badges ])
+    return new DatabaseEntry([ ...this.name ], this.sizeX, this.sizeY, this.sizeZ, this.halo, this.dragonWings, [ ...this.badges ])
   }
 }
