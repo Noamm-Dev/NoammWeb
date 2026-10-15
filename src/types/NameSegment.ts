@@ -36,6 +36,20 @@ export const readNameSegments = (value: unknown): NameSegment[] => {
   }))
 }
 
+// The generator holds a single gradient, so a name made of several segments is flattened into the first one's style.
+export const flattenSegments = (segments: NameSegment[]): NameSegment | null => {
+  const first = segments[0]
+  if (! first) return null
+
+  return {
+    text: segments.map((segment) => segment.text).join(""),
+    colors: [ ...first.colors ],
+    shadowColors: [ ...first.shadowColors ],
+    bold: first.bold === true,
+    italic: first.italic === true
+  }
+}
+
 // Same rgbirdflop settings the server renders with, so this matches what players see in game.
 const renderSegment = (segment: NameSegment): unknown[] => {
   if (segment.colors.length === 0) return [ { text: segment.text } ]

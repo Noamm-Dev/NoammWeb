@@ -3,6 +3,7 @@ import MinecraftApi from "./MinecraftApi"
 import type { MeResponse, ProfilePlayer } from "../types/profile"
 import { isJsonRecord } from '../utils.ts'
 import DatabaseEntry, { type DatabaseData, type DatabaseOwner, databaseOwnerFromUnknown, databaseOwnersFromUnknown } from '../types/DatabaseEntry.ts'
+import { readNameSegments } from '../types/NameSegment.ts'
 
 type McIdVerifyResponse = | { authenticated: false } | { authenticated: true, authorized: false, error: string } | {
   apiKey: string
@@ -114,6 +115,22 @@ class NoammApi {
     })
 
     return DatabaseEntry.fromUnknown(data)
+  }
+
+  async convertName(json: string) {
+    const session = AuthSession.read()
+    if (! session) throw new NoammApiError(401, "Your session expired.", null)
+
+    const data = await this.request("/database/web/name", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Auth-Token": session.apiKey
+      },
+      body: json
+    })
+
+    return readNameSegments(data)
   }
 
   async adminLogin(password: string) {

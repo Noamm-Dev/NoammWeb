@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Bold, Italic, Plus, Trash2 } from "lucide-react"
-import type { NameSegment } from "../types/NameSegment"
+import { flattenSegments, type NameSegment } from "../types/NameSegment"
 import { MinecraftTextPreview } from "./MinecraftTextPreview"
 
 interface RGBirdflopGeneratorProps {
@@ -37,18 +37,17 @@ const defaultGeneratorState = (text: string): GeneratorState => ({
   text
 })
 
-// The editor holds a single gradient, so a name made of several segments is flattened into the first one's style.
 const buildInitialState = (initialValue: NameSegment[] | undefined, initialText: string): GeneratorState => {
-  const first = initialValue?.[0]
-  if (! initialValue || ! first) return defaultGeneratorState(initialText.trim())
+  const flat = initialValue ? flattenSegments(initialValue) : null
+  if (! flat) return defaultGeneratorState(initialText.trim())
 
   return {
-    bold: first.bold === true,
-    colors: first.colors.length > 0 ? [ ...first.colors ] : [ ...DEFAULT_MAIN_COLORS ],
-    enableShadow: first.shadowColors.length > 0,
-    italic: first.italic === true,
-    shadowColors: first.shadowColors.length > 0 ? [ ...first.shadowColors ] : [ ...DEFAULT_SHADOW_COLORS ],
-    text: initialValue.map((segment) => segment.text).join("")
+    bold: flat.bold === true,
+    colors: flat.colors.length > 0 ? flat.colors : [ ...DEFAULT_MAIN_COLORS ],
+    enableShadow: flat.shadowColors.length > 0,
+    italic: flat.italic === true,
+    shadowColors: flat.shadowColors.length > 0 ? flat.shadowColors : [ ...DEFAULT_SHADOW_COLORS ],
+    text: flat.text
   }
 }
 

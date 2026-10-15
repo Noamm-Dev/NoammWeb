@@ -1,10 +1,11 @@
 import { type FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Navigate, useNavigate } from "react-router-dom"
-import { LogOut, RotateCcw, Sparkles, Timer } from "lucide-react"
+import { LogOut, RotateCcw, Sparkles, Timer, Type } from "lucide-react"
 import { ActionButton } from "../components/ActionButton"
 import { MinecraftTextPreview } from "../components/MinecraftTextPreview"
 import { SiteCredit } from "../components/SiteCredit"
 import { StatusBanner } from "../components/StatusBanner"
+import { TextField } from "../components/TextField"
 import AuthSession from "../lib/AuthSession"
 import { cssRgbToHalo, HALO_DEFAULT, haloRgbToCss, haloToCss } from "../lib/halo"
 import NoammApi, { NoammApiError } from "../lib/NoammApi"
@@ -15,7 +16,7 @@ import { MinecraftSkinViewer } from "../components/MinecraftSkinViewer"
 import { DEFAULT_SCALE, SCALE_AXES, SLIDER_CONFIG } from "../content/database"
 import { formatTime, getErrorMessage } from '../utils'
 import DatabaseEntry, { type DatabaseEntryAxis } from '../types/DatabaseEntry'
-import type { NameSegment } from '../types/NameSegment'
+import { flattenSegments, type NameSegment } from '../types/NameSegment'
 import { RGBirdflopGenerator } from "../components/RGBirdflopGenerator"
 
 type SessionSource = "local" | "server"
@@ -45,6 +46,7 @@ const NAME_INVALID_CHARACTERS_REGEX = /[^A-Za-z0-9_]/g
 const BANNED_NAME_CHARACTERS = new Set([ '卐', '卍' ])
 const SCALE_MIN_ABSOLUTE = 0.09
 const HALO_DEBOUNCE_DELAY_MS = 500
+const NAME_DEBOUNCE_DELAY_MS = 500
 
 const scaleValuesClose = (a: number, b: number) => Math.abs(a - b) < 0.001
 const getCustomNameError = (name: string, username: string | null): string | null => {
@@ -95,7 +97,48 @@ export function MePage() {
   const [ errorMessage, setErrorMessage ] = useState<string | null>(null)
   const [ successMessage, setSuccessMessage ] = useState<string | null>(null)
 
-  const handleGenerateName = useCallback((segment: NameSegment) => setDatabaseEntry((entry) => entry.copy().setName([ segment ])), [])
+  // raw text component json typed into the custom name field, converted to segments by the server on save
+  const [ nameJson, setNameJson ] = useState<string | null>(null)
+  const [ generatorKey, setGeneratorKey ] = useState(0)
+  const nameJsonRef = useRef<string | null>(null)
+  const nameDebounceRef = useRef<number | null>(null)
+  // remounting the generator makes it emit the converted name back, that echo must not replace the typed json
+  const convertedSegmentRef = useRef<string | null>(null)
+
+  const handleGenerateName = useCallback((segment: NameSegment) => {
+    if (JSON.stringify(segment) === convertedSegmentRef.current) return
+    convertedSegmentRef.current = null
+    nameJsonRef.current = null
+    setNameJson(null)
+    setDatabaseEntry((entry) => entry.copy().setName([ segment ]))
+  }, [])
+
+  const handleSetNameJson = (json: string) => {
+    nameJsonRef.current = json
+    setNameJson(json)
+    if (nameDebounceRef.current !== null) window.clearTimeout(nameDebounceRef.current)
+
+    nameDebounceRef.current = window.setTimeout(() => {
+      nameDebounceRef.current = null
+      if (json.trim()) void syncGeneratorWithJson(json)
+    }, NAME_DEBOUNCE_DELAY_MS)
+  }
+
+  async function syncGeneratorWithJson(json: string) {
+    const segments = await NoammApi.convertName(json).catch((error: unknown) => {
+      // half typed json is rejected with a 400 while typing, anything else is a real failure
+      if (! (error instanceof NoammApiError && error.status === 400)) setErrorMessage(getErrorMessage(error))
+      return null
+    })
+    if (! segments || nameJsonRef.current !== json) return
+
+    const flat = flattenSegments(segments)
+    if (! flat) return
+
+    convertedSegmentRef.current = JSON.stringify(flat)
+    setDatabaseEntry((entry) => entry.copy().setName(segments))
+    setGeneratorKey((key) => key + 1)
+  }
 
   const haloInputRef = useRef<HTMLInputElement | null>(null)
   const haloDebounceRef = useRef<number | null>(null)
@@ -225,7 +268,8 @@ export function MePage() {
 
   const parsedScale = useMemo(() => parseScaleInputState(scaleInput), [ scaleInput ])
 
-  const customName = databaseEntry.getName().trim() || null
+  const nameValue = nameJson ?? databaseEntry.getName()
+  const customName = nameValue.trim() || null
   const previewScale = parsedScale.error === null ? parsedScale.value : (player?.scale ?? null)
   const canEditName = player?.hasName !== false
   const canEditSize = player?.hasSize !== false
@@ -259,9 +303,12 @@ export function MePage() {
 
     try {
       const entryToSave = databaseEntry.copy().setSizeX(parsedScale.value.x).setSizeY(parsedScale.value.y).setSizeZ(parsedScale.value.z)
+      if (nameJson !== null) entryToSave.setName(nameJson.trim() ? await NoammApi.convertName(nameJson) : [])
       const response = await NoammApi.updateEntry(entryToSave)
       const updatedPlayer = response.toProfilePlayer(player)
       setDatabaseEntry(response)
+      nameJsonRef.current = null
+      setNameJson(null)
       setScaleInput(entryToScaleInput(response))
       setPlayer(updatedPlayer)
       AuthSession.updatePlayer(updatedPlayer)
@@ -379,12 +426,13 @@ export function MePage() {
               <div className="flex flex-col gap-4">
                 { canEditName && (
                   <RGBirdflopGenerator
+                    key={ generatorKey }
                     disabled={ isSaving }
                     initialText={ displayLabel }
                     initialValue={ databaseEntry.getNameSegments() }
                     onGenerate={ handleGenerateName }
                     previewEmptyLabel={ displayLabel }
-                    previewValue={ databaseEntry.getName() }
+                    previewValue={ nameValue }
                   />
                 ) }
 
@@ -400,6 +448,17 @@ export function MePage() {
                     />
                   </div>
                 ) }
+
+                <TextField
+                  autoComplete="off"
+                  disabled={ isSaving || ! canEditName }
+                  icon={ <Type className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true"/> }
+                  label="Custom Name"
+                  multiline={ false }
+                  onChange={ event => handleSetNameJson(event.target.value) }
+                  placeholder={ `{"text":"${ displayLabel }","color":"#4498DB"}` }
+                  value={ nameValue }
+                />
               </div>
             </div>
 
