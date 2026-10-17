@@ -15,14 +15,17 @@ export interface WebConfig {
 
 class SiteConfig {
   private config: WebConfig | null = null
+  private loading: Promise<void> | null = null
   private badgeData: Record<string, BadgeData> = {}
   private cachedDefaultOwner: DatabaseOwner | null = null
   private readonly SLIDER_STEP = 0.01
 
-  async load() {
-    const [ config, badges ] = await Promise.all([ NoammApi.getWebConfig(), NoammApi.getBadges() ])
-    this.config = config
-    this.badgeData = badges
+  load() {
+    this.loading ??= Promise.all([ NoammApi.getWebConfig(), NoammApi.getBadges() ]).then(([ config, badges ]) => {
+      this.config = config
+      this.badgeData = badges
+    })
+    return this.loading
   }
 
   get badges() {
