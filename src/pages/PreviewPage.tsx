@@ -5,7 +5,8 @@ import { MinecraftSkinViewer } from "../components/MinecraftSkinViewer"
 import { RGBirdflopGenerator } from "../components/RGBirdflopGenerator"
 import { StatusBanner } from "../components/StatusBanner"
 import { TextField } from "../components/TextField"
-import { DEFAULT_SCALE, SCALE_AXES, SLIDER_CONFIG } from "../content/database"
+import { DEFAULT_SCALE, SCALE_AXES } from "../content/database"
+import SiteConfig from "../lib/SiteConfig"
 import { cssRgbToHalo, HALO_DEFAULT, haloRgbToCss, haloToCss } from "../lib/halo"
 import type { Scale } from "../types/profile"
 import { type NameSegment, renderName } from "../types/NameSegment"
@@ -39,8 +40,8 @@ const parseScaleInput = (value: string) => {
 const validateScale = (scale: Scale): ParsedScale => {
   for (const value of Object.values(scale)) {
     if (! Number.isFinite(value)) return { error: "Scale values must be valid numbers.", value: null }
-    if (value < SLIDER_CONFIG.min || value > SLIDER_CONFIG.max) return {
-      error: `Scale values must stay between ${ SLIDER_CONFIG.min } and ${ SLIDER_CONFIG.max }.`,
+    if (value < SiteConfig.sliderConfig.min || value > SiteConfig.sliderConfig.max) return {
+      error: `Scale values must stay between ${ SiteConfig.sliderConfig.min } and ${ SiteConfig.sliderConfig.max }.`,
       value: null
     }
   }
@@ -50,7 +51,7 @@ const validateScale = (scale: Scale): ParsedScale => {
 const getScaleSliderValue = (value: string, fallback: number) => {
   const parsedValue = parseScaleInput(value)
   const safeValue = Number.isFinite(parsedValue) ? parsedValue : fallback
-  return Math.min(SLIDER_CONFIG.max, Math.max(SLIDER_CONFIG.min, safeValue))
+  return Math.min(SiteConfig.sliderConfig.max, Math.max(SiteConfig.sliderConfig.min, safeValue))
 }
 
 export function PreviewPage() {
@@ -209,10 +210,10 @@ export function PreviewPage() {
                   <input
                     aria-label={ `Size ${ axis.toUpperCase() } slider` }
                     className="scale-slider"
-                    max={ SLIDER_CONFIG.max }
-                    min={ SLIDER_CONFIG.min }
+                    max={ SiteConfig.sliderConfig.max }
+                    min={ SiteConfig.sliderConfig.min }
                     onChange={ (event) => setCustomScale(axis, event.target.value) }
-                    step={ SLIDER_CONFIG.step }
+                    step={ SiteConfig.sliderConfig.step }
                     type="range"
                     value={ getScaleSliderValue(scaleInput[axis], DEFAULT_SCALE[axis]) }
                   />

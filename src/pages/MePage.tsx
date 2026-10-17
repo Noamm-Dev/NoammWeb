@@ -13,7 +13,8 @@ import NotificationManager from "../lib/NotificationManager"
 import { getPlainMinecraftText } from "../lib/minecraft-text"
 import type { ProfilePlayer, Scale } from "../types/profile"
 import { MinecraftSkinViewer } from "../components/MinecraftSkinViewer"
-import { DEFAULT_SCALE, SCALE_AXES, SLIDER_CONFIG } from "../content/database"
+import { DEFAULT_SCALE, SCALE_AXES } from "../content/database"
+import SiteConfig from "../lib/SiteConfig"
 import { formatTime, getErrorMessage } from '../utils'
 import DatabaseEntry, { type DatabaseEntryAxis } from '../types/DatabaseEntry'
 import { flattenSegments, type NameSegment } from '../types/NameSegment'
@@ -43,16 +44,18 @@ const parseScaleInput = (value: string) => {
 }
 
 const NAME_INVALID_CHARACTERS_REGEX = /[^A-Za-z0-9_]/g
-const BANNED_NAME_CHARACTERS = new Set([ '卐', '卍' ])
-const SCALE_MIN_ABSOLUTE = 0.09
 const HALO_DEBOUNCE_DELAY_MS = 500
 const NAME_DEBOUNCE_DELAY_MS = 500
 
 const scaleValuesClose = (a: number, b: number) => Math.abs(a - b) < 0.001
 const getCustomNameError = (name: string, username: string | null): string | null => {
   const plainText = getPlainMinecraftText(name)
-  if (Array.from(plainText).some((character) => BANNED_NAME_CHARACTERS.has(character))) {
+  if (Array.from(plainText).some((character) => SiteConfig.nameRules.bannedCharacters.includes(character))) {
     return "Your custom name contains a forbidden character."
+  }
+
+  if (plainText.length > SiteConfig.nameRules.maxLength) {
+    return `Your custom name must be at most ${ SiteConfig.nameRules.maxLength } characters.`
   }
 
   if (! username) return null
@@ -68,11 +71,11 @@ const getCustomNameError = (name: string, username: string | null): string | nul
 const validateScale = (scale: Scale): ParsedScale => {
   for (const value of Object.values(scale)) {
     if (! Number.isFinite(value)) return { error: "Scale values must be valid numbers.", value: null }
-    if (value < SLIDER_CONFIG.min || value > SLIDER_CONFIG.max) return {
-      error: `Scale values must stay between ${ SLIDER_CONFIG.min } and ${ SLIDER_CONFIG.max }.`, value: null
+    if (value < SiteConfig.sliderConfig.min || value > SiteConfig.sliderConfig.max) return {
+      error: `Scale values must stay between ${ SiteConfig.sliderConfig.min } and ${ SiteConfig.sliderConfig.max }.`, value: null
     }
-    if (Math.abs(value) <= SCALE_MIN_ABSOLUTE) return {
-      error: `Scale values must be at least ${ SCALE_MIN_ABSOLUTE } away from zero.`, value: null
+    if (Math.abs(value) <= SiteConfig.minAbsoluteSize) return {
+      error: `Scale values must be at least ${ SiteConfig.minAbsoluteSize } away from zero.`, value: null
     }
   }
   return { error: null, value: scale }
@@ -81,7 +84,7 @@ const validateScale = (scale: Scale): ParsedScale => {
 const getScaleSliderValue = (value: string, fallback: number) => {
   const parsedValue = parseScaleInput(value)
   const safeValue = Number.isFinite(parsedValue) ? parsedValue : fallback
-  return Math.min(SLIDER_CONFIG.max, Math.max(SLIDER_CONFIG.min, safeValue))
+  return Math.min(SiteConfig.sliderConfig.max, Math.max(SiteConfig.sliderConfig.min, safeValue))
 }
 
 export function MePage() {
@@ -504,10 +507,10 @@ export function MePage() {
                       aria-label={ `Size ${ axis.toUpperCase() } slider` }
                       className="scale-slider"
                       disabled={ isSaving || ! canEditSize }
-                      max={ SLIDER_CONFIG.max }
-                      min={ SLIDER_CONFIG.min }
+                      max={ SiteConfig.sliderConfig.max }
+                      min={ SiteConfig.sliderConfig.min }
                       onChange={ (e) => setCustomScale(axis, e.target.value) }
-                      step={ SLIDER_CONFIG.step }
+                      step={ SiteConfig.sliderConfig.step }
                       type="range"
                       value={ getScaleSliderValue(scaleInput[axis], databaseEntry.getSize(axis) ?? DEFAULT_SCALE[axis]) }
                     />

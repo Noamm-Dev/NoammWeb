@@ -1,6 +1,6 @@
 import { BadgeCheck, Eraser, Feather, Hash, RotateCcw, Ruler, Save, Sparkles, Type, X } from "lucide-react"
 import { type FormEvent, useEffect, useState } from "react"
-import { BADGES, SLIDER_CONFIG } from "../content/database"
+import SiteConfig from "../lib/SiteConfig"
 import { cssRgbToHalo, HALO_DEFAULT, HALO_UNSET, haloRgbToCss, haloToCss } from "../lib/halo"
 import DatabaseEntry from "../types/DatabaseEntry"
 import { type NameSegment, readNameSegments, renderName } from "../types/NameSegment"
@@ -265,10 +265,10 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
                   <span>Badges</span>
                 </span>
                 <div className="flex min-h-[46px] flex-wrap items-center gap-2">
-                  { BADGES.map((badge) => (
+                  { SiteConfig.badges.map((badge) => (
                     <button
                       aria-pressed={ formState.badges.includes(badge) }
-                      className={ `rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      className={ `inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                         formState.badges.includes(badge)
                           ? "border-yellow-200/30 bg-yellow-300/15 text-yellow-100"
                           : "border-white/10 bg-white/[0.035] text-white/40 hover:border-white/20 hover:text-white/65"
@@ -278,6 +278,7 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
                       onClick={ () => toggleBadge(badge) }
                       type="button"
                     >
+                      <img alt="" aria-hidden="true" className="h-4 w-4 [image-rendering:pixelated]" src={ SiteConfig.badgeImage(badge) ?? undefined }/>
                       { badge }
                     </button>
                   )) }
@@ -308,10 +309,10 @@ export function DatabaseEntryModal({ initialEntry, initialUuid, isSaving, mode, 
                       aria-label={ `${ label } slider` }
                       className="scale-slider mt-3"
                       disabled={ isSaving }
-                      max={ SLIDER_CONFIG.max }
-                      min={ SLIDER_CONFIG.min }
+                      max={ SiteConfig.sliderConfig.max }
+                      min={ SiteConfig.sliderConfig.min }
                       onChange={ (event) => updateSizeField(field, event.target.value) }
-                      step={ SLIDER_CONFIG.step }
+                      step={ SiteConfig.sliderConfig.step }
                       type="range"
                       value={ getSliderSizeValue(formState[field]) }
                     />
@@ -385,7 +386,7 @@ function parsePreviewSize(value: string) {
 
 function getSliderSizeValue(value: string) {
   const parsed = parsePreviewSize(value)
-  return Math.min(SLIDER_CONFIG.max, Math.max(SLIDER_CONFIG.min, parsed))
+  return Math.min(SiteConfig.sliderConfig.max, Math.max(SiteConfig.sliderConfig.min, parsed))
 }
 
 const formatSize = (value: number | undefined) => value === undefined ? "1.0" : String(value)

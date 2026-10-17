@@ -1,7 +1,7 @@
 import { BadgeCheck, Feather, Save, Settings, ShieldCheck, Trash2, X } from "lucide-react"
 import { type CSSProperties, type FormEvent, type KeyboardEvent, memo, type MouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { DEFAULT_OWNER, OWNER_PERMISSIONS } from "../content/database"
+import SiteConfig from "../lib/SiteConfig"
 import { haloToCss, haloToRgba } from "../lib/halo"
 import { ActionButton } from "./ActionButton"
 import { MinecraftTextPreview } from "./MinecraftTextPreview"
@@ -64,7 +64,7 @@ export const DatabaseEntryRow = memo(({
   onDeleteEntry,
   onEdit,
   onSaveOwner,
-  owner = DEFAULT_OWNER,
+  owner = SiteConfig.defaultOwner,
   uuid
 }: DatabaseEntryRowProps) => {
   const sizeTags = useMemo(() => buildSizeTags(entry), [ entry ])
@@ -330,7 +330,7 @@ export const DatabaseEntryRow = memo(({
           </div>
 
           <form className="grid gap-3" onSubmit={ handleSaveOwner }>
-            { OWNER_PERMISSIONS.map((permission) => (
+            { SiteConfig.permissions.map((permission) => (
               <label
                 className="flex min-h-11 items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]"
                 key={ permission }

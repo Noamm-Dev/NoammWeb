@@ -8,7 +8,7 @@ import { DatabaseEntryRow } from "../components/DatabaseEntryRow"
 import { DatabaseOwnerOnlyRow } from "../components/DatabaseOwnerOnlyRow"
 import { DatabaseOwnerModal, type DatabaseOwnerPayload } from "../components/DatabaseOwnerModal"
 import { SiteCredit } from "../components/SiteCredit"
-import { DEFAULT_OWNER, OWNER_PERMISSIONS } from "../content/database"
+import SiteConfig from "../lib/SiteConfig"
 import { TextField } from "../components/TextField"
 import MinecraftApi, { type MinecraftProfile } from "../lib/MinecraftApi"
 import { getPlainMinecraftText } from "../lib/minecraft-text"
@@ -429,7 +429,7 @@ export function DatabaseAdminPage() {
     setSuccessMessage(null)
 
     try {
-      const { uuid, ...owner } = payload
+      const { uuid, owner } = payload
 
       await NoammApi.saveOwner(uuid, owner)
 
@@ -739,7 +739,7 @@ export function DatabaseAdminPage() {
                     onDeleteEntry={ handleDeleteEntryFromSettings }
                     onEdit={ handleEditEntry }
                     onSaveOwner={ handleSaveEntryOwnerSettings }
-                    owner={ owners[item.uuid] ?? DEFAULT_OWNER }
+                    owner={ owners[item.uuid] ?? SiteConfig.defaultOwner }
                     uuid={ item.uuid }
                   />
                 )) }
@@ -854,7 +854,7 @@ export function DatabaseAdminPage() {
                 { ownerDeleteDialog.uuid }
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                { OWNER_PERMISSIONS.map((permission) => (
+                { SiteConfig.permissions.map((permission) => (
                   <span
                     className={ `inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
                       ownerDeleteDialog.owner[permission]

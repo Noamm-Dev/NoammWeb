@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react"
 import { Hash, Save, ShieldCheck, X } from "lucide-react"
-import { DEFAULT_OWNER, DEFAULT_SCALE, OWNER_PERMISSIONS } from "../content/database"
+import { DEFAULT_SCALE } from "../content/database"
+import SiteConfig from "../lib/SiteConfig"
 import type { DatabaseOwner } from "../types/DatabaseEntry"
 import { ActionButton } from "./ActionButton"
 import { MinecraftSkinViewer } from "./MinecraftSkinViewer"
@@ -8,7 +9,8 @@ import { StatusBanner } from "./StatusBanner"
 import { TextField } from "./TextField"
 import MinecraftApi from "../lib/MinecraftApi"
 
-export interface DatabaseOwnerPayload extends DatabaseOwner {
+export interface DatabaseOwnerPayload {
+  owner: DatabaseOwner
   uuid: string
 }
 
@@ -24,7 +26,7 @@ interface DatabaseOwnerModalProps {
 export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, onClose, onSubmit, uuidReadOnly = false }: DatabaseOwnerModalProps) {
   const [ uuid, setUuid ] = useState(initialUuid)
   const [ debouncedUuid, setDebouncedUuid ] = useState(initialUuid)
-  const [ permissions, setPermissions ] = useState<DatabaseOwner>(initialOwner ?? DEFAULT_OWNER)
+  const [ permissions, setPermissions ] = useState<DatabaseOwner>(initialOwner ?? SiteConfig.defaultOwner)
   const [ formError, setFormError ] = useState<string | null>(null)
   const [ isResolving, setIsResolving ] = useState(false)
 
@@ -87,7 +89,7 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
     else if (! MinecraftApi.isMinecraftUuid(uuid)) return setFormError("Enter a valid Minecraft username or UUID.")
     else uuid = MinecraftApi.dashedUUID(uuid) || uuid
 
-    const apiError = await onSubmit({ ...permissions, uuid })
+    const apiError = await onSubmit({ owner: permissions, uuid })
 
     if (apiError) setFormError(apiError)
   }
@@ -149,7 +151,7 @@ export function DatabaseOwnerModal({ initialOwner, initialUuid = "", isSaving, o
               />
 
               <div className="grid gap-3 sm:grid-cols-3">
-                { OWNER_PERMISSIONS.map((permission) => (
+                { SiteConfig.permissions.map((permission) => (
                   <label
                     className="flex min-h-14 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-cyan-400/[0.06]"
                     key={ permission }

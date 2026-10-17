@@ -3,6 +3,7 @@ import { isJsonRecord } from "../utils"
 import { HALO_UNSET } from "../lib/halo"
 import { mapValues } from 'remeda'
 import { type NameSegment, readNameSegments, renderName } from "./NameSegment"
+import SiteConfig from "../lib/SiteConfig"
 
 export type DatabaseEntryAxis = "x" | "y" | "z"
 
@@ -11,24 +12,12 @@ export interface DatabaseData {
   owners: Record<string, DatabaseOwner>,
 }
 
-export interface DatabaseOwner {
-  hasName: boolean
-  hasSize: boolean
-  hasHalo: boolean
-  hasDragonWings: boolean
-  hasBadges: boolean
-}
+// Permission keys come from the backend (SiteConfig.permissions)
+export type DatabaseOwner = Record<string, boolean>
 
 export const databaseOwnerFromUnknown = (value: unknown): DatabaseOwner => {
-  if (! isJsonRecord(value)) return { hasName: false, hasSize: false, hasHalo: false, hasDragonWings: false, hasBadges: false }
-
-  return {
-    hasName: value.hasName === true,
-    hasSize: value.hasSize === true,
-    hasHalo: value.hasHalo === true,
-    hasDragonWings: value.hasDragonWings === true,
-    hasBadges: value.hasBadges === true
-  }
+  if (! isJsonRecord(value)) return SiteConfig.defaultOwner
+  return Object.fromEntries(SiteConfig.permissions.map((permission) => [ permission, value[permission] === true ]))
 }
 
 export const databaseOwnersFromUnknown = (value: unknown): Record<string, DatabaseOwner> => {

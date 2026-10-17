@@ -1,6 +1,6 @@
 import { type KeyboardEvent, memo, type MouseEvent } from "react"
 import { Crown, Sparkles, Trash2 } from "lucide-react"
-import { OWNER_PERMISSIONS } from "../content/database"
+import SiteConfig from "../lib/SiteConfig"
 import { ActionButton } from "./ActionButton"
 import type { DatabaseOwner } from "../types/DatabaseEntry"
 
@@ -63,7 +63,7 @@ export const DatabaseOwnerOnlyRow = memo(({ isDeleting, onDelete, onEditEntry, o
           Owner without entry
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          { OWNER_PERMISSIONS.map((permission) => (
+          { SiteConfig.permissions.map((permission) => (
             <span
               className={ `inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${
                 owner[permission]

@@ -4,6 +4,7 @@ import type { MeResponse, ProfilePlayer } from "../types/profile"
 import { isJsonRecord } from '../utils.ts'
 import DatabaseEntry, { type DatabaseData, type DatabaseOwner, databaseOwnerFromUnknown, databaseOwnersFromUnknown } from '../types/DatabaseEntry.ts'
 import { readNameSegments } from '../types/NameSegment.ts'
+import type { BadgeData, WebConfig } from './SiteConfig.ts'
 
 type McIdVerifyResponse = | { authenticated: false } | { authenticated: true, authorized: false, error: string } | {
   apiKey: string
@@ -28,6 +29,14 @@ export class NoammApiError extends Error {
 class NoammApi {
   readonly baseURL = import.meta.env.DEV ? "/api" : "https://velox.noamm.org"
   readonly authConfig = { codeLength: 6, codeTTL: 300 }
+
+  async getWebConfig() {
+    return await this.request<WebConfig>("/web/config", { method: "GET" })
+  }
+
+  async getBadges() {
+    return await this.request<Record<string, BadgeData>>("/badges.json", { method: "GET" })
+  }
 
   async requestMcIdCode(uuid: string) {
     await this.requestText(`/auth/mc-id/${ encodeURIComponent(uuid) }/request`, { method: "GET" })
