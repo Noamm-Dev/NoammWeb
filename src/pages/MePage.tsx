@@ -44,12 +44,13 @@ const parseScaleInput = (value: string) => {
 }
 
 const NAME_INVALID_CHARACTERS_REGEX = /[^A-Za-z0-9_]/g
+const VARIATION_SELECTORS_REGEX = /[\uFE0F\uFE0E]/g
 const HALO_DEBOUNCE_DELAY_MS = 500
 const NAME_DEBOUNCE_DELAY_MS = 500
 
 const scaleValuesClose = (a: number, b: number) => Math.abs(a - b) < 0.001
 const getCustomNameError = (name: string, username: string | null): string | null => {
-  const plainText = getPlainMinecraftText(name)
+  const plainText = getPlainMinecraftText(name).replace(VARIATION_SELECTORS_REGEX, "")
   if (Array.from(plainText).some((character) => SiteConfig.nameRules.bannedCharacters.includes(character))) {
     return "Your custom name contains a forbidden character."
   }
@@ -522,10 +523,10 @@ export function MePage() {
                       inputMode="decimal"
                       onChange={ (e) => setCustomScale(axis, e.target.value) }
                       type="text"
-                    value={ scaleInput[axis] }
-                  />
-                </div>
-              )) }
+                      value={ scaleInput[axis] }
+                    />
+                  </div>
+                )) }
               </div>
 
               <div>
