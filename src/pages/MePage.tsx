@@ -43,7 +43,6 @@ const parseScaleInput = (value: string) => {
   return Number(normalizedValue)
 }
 
-const NAME_INVALID_CHARACTERS_REGEX = /[^A-Za-z0-9_]/g
 const VARIATION_SELECTORS_REGEX = /[\uFE0F\uFE0E]/g
 const HALO_DEBOUNCE_DELAY_MS = 500
 const NAME_DEBOUNCE_DELAY_MS = 500
@@ -61,9 +60,9 @@ const getCustomNameError = (name: string, username: string | null): string | nul
 
   if (! username) return null
 
-  const cleanName = plainText.replace(NAME_INVALID_CHARACTERS_REGEX, "").trim()
-  if (cleanName.toLowerCase() !== username.toLowerCase()) {
-    return "Your custom name must match Minecraft username. Only symbols/unicodes are supported before/after it."
+  // Same check as the server: the username has to be its own word, so "[YOUTUBE] Brint" passes but "Brint2" doesn't.
+  if (! new RegExp(`(?<![A-Za-z0-9_])${ username }(?![A-Za-z0-9_])`, "i").test(plainText)) {
+    return "Your custom name must contain your Minecraft username. Only symbols/unicodes are supported around it."
   }
 
   return null
