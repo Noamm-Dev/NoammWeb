@@ -567,7 +567,7 @@ export function MePage() {
             <StatusBanner message={ parsedScale.error } tone="error"/>
 
             <ActionButton
-              disabled={ isSaving || ! serverBacked || ! hasChanges || parsedScale.error !== null || (! canEditName && ! canEditSize) }
+              disabled={ isSaving || ! serverBacked || ! hasChanges || parsedScale.error !== null || (! canEditName && ! canEditSize && ! canEditHalo) }
               type="submit"
               variant="primary"
               className="w-full bg-[#70a7ff] hover:bg-[#5896ff] disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-bold py-3.5 rounded-xl transition-all duration-200 text-center flex justify-center items-center"
