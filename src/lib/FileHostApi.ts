@@ -8,6 +8,19 @@ export interface UploadedFile {
   pending: boolean
 }
 
+export interface HostedFile {
+  id: string
+  name: string
+  url: string
+  raw: string
+  size: number
+  views: number
+  maxViews: number | null
+  deletesAt: string | null
+  createdAt: string
+  password: boolean
+}
+
 export interface UploadOptions {
   expiresIn: string | null
   maxViews: string
@@ -22,6 +35,11 @@ interface UploadResponse {
 interface SessionResponse {
   authenticated?: boolean
   error?: string
+}
+
+interface FilesResponse {
+  error?: string
+  files?: HostedFile[]
 }
 
 class FileHostApi {
@@ -80,11 +98,23 @@ class FileHostApi {
     })
   }
 
-  private async session(init: RequestInit) {
-    const response = await fetch(`${ this.baseURL }/upload/session`, { ...init, credentials: "include" })
-    const data = await response.json().catch(() => null) as SessionResponse | null
+  async listFiles() {
+    return (await this.request<FilesResponse>("/upload/files", { method: "GET" })).files ?? []
+  }
+
+  async deleteFile(id: string) {
+    await this.request(`/upload/files/${ encodeURIComponent(id) }`, { method: "DELETE" })
+  }
+
+  private session(init: RequestInit) {
+    return this.request<SessionResponse>("/upload/session", init)
+  }
+
+  private async request<T extends { error?: string }>(path: string, init: RequestInit) {
+    const response = await fetch(`${ this.baseURL }${ path }`, { ...init, credentials: "include" })
+    const data = await response.json().catch(() => null) as T | null
     if (! response.ok) throw new NoammApiError(response.status, data?.error ?? `HTTP ${ response.status }`, data)
-    return data ?? {}
+    return data ?? {} as T
   }
 }
 

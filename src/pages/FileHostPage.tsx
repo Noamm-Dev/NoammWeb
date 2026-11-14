@@ -1,9 +1,9 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react"
-import { Clock, Copy, ExternalLink, Eye, File as FileIcon, KeyRound, Lock, LogOut, Upload, X } from "lucide-react"
+import { Clock, Copy, ExternalLink, Eye, File as FileIcon, KeyRound, Link2, Lock, LogOut, RefreshCw, Trash2, Upload, X } from "lucide-react"
 import { ActionButton } from "../components/ActionButton"
 import { StatusBanner } from "../components/StatusBanner"
 import { TextField } from "../components/TextField"
-import FileHostApi, { type UploadedFile, type UploadOptions } from "../lib/FileHostApi.ts"
+import FileHostApi, { type HostedFile, type UploadedFile, type UploadOptions } from "../lib/FileHostApi.ts"
 import { NoammApiError } from "../lib/NoammApi.ts"
 import NotificationManager from "../lib/NotificationManager"
 import { getErrorMessage } from "../utils"
@@ -34,6 +34,16 @@ const formatSize = (bytes: number) => {
   return `${ (bytes / 1024 / 1024).toFixed(1) } MB`
 }
 
+// Zipline keeps listing expired or used up files until its cleanup job deletes them
+const activeLinks = (files: HostedFile[]) => {
+  const now = Date.now()
+  return files
+    .filter((file) => (! file.deletesAt || Date.parse(file.deletesAt) > now) && (file.maxViews === null || file.views < file.maxViews))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+const formatDate = (date: string) => new Date(date).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+
 export function FileHostPage() {
   const [ isAuthed, setIsAuthed ] = useState<boolean | null>(null)
   const [ adminPassword, setAdminPassword ] = useState("")
@@ -44,11 +54,57 @@ export function FileHostPage() {
   const [ expiresIn, setExpiresIn ] = useState<string | null>(null)
   const [ maxViews, setMaxViews ] = useState("")
   const [ password, setPassword ] = useState("")
+  const [ links, setLinks ] = useState<HostedFile[] | null>(null)
+  const [ linksError, setLinksError ] = useState<string | null>(null)
+  const [ isLoadingLinks, setIsLoadingLinks ] = useState(false)
+  const [ armedDeleteId, setArmedDeleteId ] = useState<string | null>(null)
+  const [ deletingIds, setDeletingIds ] = useState<string[]>([])
   const nextIdRef = useRef(0)
+  const disarmTimeoutRef = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     FileHostApi.isLoggedIn().then(setIsAuthed).catch(() => setIsAuthed(false))
   }, [])
+
+  useEffect(() => {
+    if (! isAuthed) return
+    fetchLinks()
+  }, [ isAuthed ])
+
+  function fetchLinks() {
+    FileHostApi.listFiles().then((files) => {
+      setLinks(activeLinks(files))
+      setLinksError(null)
+    }).catch((error) => {
+      if (error instanceof NoammApiError && error.status === 401) setIsAuthed(false)
+      setLinksError(getErrorMessage(error))
+    }).finally(() => setIsLoadingLinks(false))
+  }
+
+  const refreshLinks = () => {
+    setIsLoadingLinks(true)
+    fetchLinks()
+  }
+
+  // First click arms the button, a second one within 3 seconds deletes
+  const handleDelete = (file: HostedFile) => {
+    window.clearTimeout(disarmTimeoutRef.current)
+    if (armedDeleteId !== file.id) {
+      setArmedDeleteId(file.id)
+      disarmTimeoutRef.current = window.setTimeout(() => setArmedDeleteId(null), 3000)
+      return
+    }
+
+    setArmedDeleteId(null)
+    setDeletingIds((ids) => [ ...ids, file.id ])
+    FileHostApi.deleteFile(file.id).then(() => {
+      setLinks((currentLinks) => currentLinks?.filter((link) => link.id !== file.id) ?? null)
+      NotificationManager.notify({ message: `Deleted ${ file.name }.`, tone: "success" })
+    }).catch((error) => {
+      if (error instanceof NoammApiError && error.status === 401) setIsAuthed(false)
+      NotificationManager.notify({ message: getErrorMessage(error), tone: "error" })
+    }).finally(() => setDeletingIds((ids) => ids.filter((id) => id !== file.id)))
+  }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -75,6 +131,7 @@ export function FileHostPage() {
   const handleLogout = () => {
     items.forEach((item) => item.controller.abort())
     setItems([])
+    setLinks(null)
     setIsAuthed(false)
     void FileHostApi.logout().catch(() => {
     })
@@ -102,7 +159,10 @@ export function FileHostPage() {
 
     if (tooLarge) return
 
-    FileHostApi.upload(file, options, (progress) => updateItem(id, { progress }), controller.signal).then((result) => updateItem(id, { progress: 1, result, status: "done" })).catch((error) => {
+    FileHostApi.upload(file, options, (progress) => updateItem(id, { progress }), controller.signal).then((result) => {
+      updateItem(id, { progress: 1, result, status: "done" })
+      fetchLinks()
+    }).catch((error) => {
       if (controller.signal.aborted) return
       if (error instanceof NoammApiError && error.status === 401) setIsAuthed(false)
       updateItem(id, { error: getErrorMessage(error), status: "error" })
@@ -335,6 +395,79 @@ export function FileHostPage() {
               }) }
             </ul>
           ) : null }
+
+          <div className="border-t border-white/[0.04] pt-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-xs font-semibold uppercase text-white/60">
+                <Link2 className="h-3.5 w-3.5" aria-hidden="true"/>
+                <span>Active Links{ links ? ` (${ links.length })` : "" }</span>
+              </span>
+              <ActionButton
+                aria-label="Refresh links"
+                className="h-9 min-h-9 w-9 rounded-lg px-0 py-0"
+                disabled={ isLoadingLinks }
+                icon={ <RefreshCw className={ `h-3.5 w-3.5 ${ isLoadingLinks ? "animate-spin" : "" }` } aria-hidden="true"/> }
+                onClick={ refreshLinks }
+                variant="ghost"
+              />
+            </div>
+
+            <StatusBanner message={ linksError } tone="error"/>
+
+            { links?.length === 0 ? (
+              <p className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-6 text-center text-sm text-white/40">No active links.</p>
+            ) : null }
+
+            { links?.length ? (
+              <ul className="flex flex-col gap-2">
+                { links.map((link) => {
+                  const isArmed = armedDeleteId === link.id
+
+                  return (
+                    <li className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3" key={ link.id }>
+                      { link.password
+                        ? <Lock className="h-4 w-4 shrink-0 text-white/40" aria-label="Password protected"/>
+                        : <FileIcon className="h-4 w-4 shrink-0 text-white/40" aria-hidden="true"/> }
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-white">{ link.name }</p>
+                        <p className="truncate text-xs text-white/40">
+                          { formatSize(link.size) }
+                          { ` · ${ link.views }${ link.maxViews === null ? "" : `/${ link.maxViews }` } views` }
+                          { link.deletesAt ? ` · expires ${ formatDate(link.deletesAt) }` : "" }
+                        </p>
+                      </div>
+                      <ActionButton
+                        aria-label="Copy link"
+                        className="h-9 min-h-9 w-9 rounded-lg px-0 py-0"
+                        icon={ <Copy className="h-3.5 w-3.5" aria-hidden="true"/> }
+                        onClick={ () => copyLink(link.url) }
+                        variant="ghost"
+                      />
+                      <a
+                        aria-label="Open file"
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white/70 transition hover:bg-white/[0.06] hover:text-white"
+                        href={ link.url }
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true"/>
+                      </a>
+                      <ActionButton
+                        aria-label={ isArmed ? "Click again to delete" : "Delete" }
+                        className={ `h-9 min-h-9 rounded-lg py-0 ${ isArmed ? "px-3 text-red-300" : "w-9 px-0" }` }
+                        disabled={ deletingIds.includes(link.id) }
+                        icon={ <Trash2 className="h-3.5 w-3.5" aria-hidden="true"/> }
+                        onClick={ () => handleDelete(link) }
+                        variant="ghost"
+                      >
+                        { isArmed ? "Delete?" : null }
+                      </ActionButton>
+                    </li>
+                  )
+                }) }
+              </ul>
+            ) : null }
+          </div>
         </div>
       </section>
     </main>
