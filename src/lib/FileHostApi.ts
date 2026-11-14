@@ -28,6 +28,7 @@ export interface UploadOptions {
 }
 
 interface UploadResponse {
+  chunkToken?: string
   error?: string
   files?: UploadedFile[]
 }
@@ -44,8 +45,10 @@ interface FilesResponse {
 
 class FileHostApi {
   readonly baseURL = import.meta.env.DEV ? "/filehost-api" : "https://upload.noamm.org"
-  // Cloudflare rejects request bodies over 100MB before they reach the file host API
-  readonly MAX_FILE_SIZE = 95 * 1024 * 1024
+  readonly MAX_FILE_SIZE = 1000 * 1024 * 1024 * 1024
+  // Cloudflare rejects request bodies over 100MB before they reach the file host API, so bigger files go up in chunks
+  readonly MAX_REQUEST_SIZE = 95 * 1024 * 1024
+  readonly CHUNK_SIZE = 50 * 1024 * 1024
 
   async isLoggedIn() {
     return (await this.session({ method: "GET" })).authenticated === true
@@ -63,16 +66,47 @@ class FileHostApi {
     await this.session({ method: "DELETE" })
   }
 
-  // XHR instead of fetch because fetch can't report upload progress.
-  // The API streams the file as it arrives, so the options have to come before it.
-  upload(file: File, options: UploadOptions, onProgress: (progress: number) => void, signal: AbortSignal) {
+  async upload(file: File, options: UploadOptions, onProgress: (progress: number) => void, signal: AbortSignal) {
+    if (file.size <= this.MAX_REQUEST_SIZE) return this.uploadedFile(await this.send(this.uploadForm(options, file, file.name), onProgress, signal))
+
+    let chunkToken: string | undefined
+    for (let start = 0; ; start += this.CHUNK_SIZE) {
+      const end = Math.min(start + this.CHUNK_SIZE, file.size)
+      const form = this.uploadForm(options, file.slice(start, end, file.type), file.name, {
+        chunkStart: String(start),
+        chunkEnd: String(end - 1),
+        fileSize: String(file.size),
+        ...chunkToken ? { chunkToken } : {}
+      })
+
+      const data = await this.send(form, (progress) => onProgress((start + progress * (end - start)) / file.size), signal)
+      if (end === file.size) return this.uploadedFile(data)
+      chunkToken = data.chunkToken
+    }
+  }
+
+  // The API streams the file as it arrives, so every other field has to come before it
+  private uploadForm(options: UploadOptions, file: Blob, name: string, fields: Record<string, string> = {}) {
     const form = new FormData()
     if (options.expiresIn) form.append("expiresIn", options.expiresIn)
     if (options.maxViews) form.append("maxViews", options.maxViews)
     if (options.password) form.append("password", options.password)
-    form.append("file", file, file.name)
+    for (const [ key, value ] of Object.entries(fields)) form.append(key, value)
+    form.append("file", file, name)
+    return form
+  }
 
-    return new Promise<UploadedFile>((resolve, reject) => {
+  private uploadedFile(data: UploadResponse) {
+    const uploaded = data.files?.[0]
+    if (! uploaded) throw new NoammApiError(200, "Upload failed: the response had no file.", data)
+    return uploaded
+  }
+
+  // XHR instead of fetch because fetch can't report upload progress
+  private send(form: FormData, onProgress: (progress: number) => void, signal: AbortSignal) {
+    return new Promise<UploadResponse>((resolve, reject) => {
+      if (signal.aborted) return reject(new NoammApiError(0, "Upload cancelled.", null))
+
       const request = new XMLHttpRequest()
       request.open("POST", `${ this.baseURL }/upload`)
       request.responseType = "json"
@@ -84,15 +118,14 @@ class FileHostApi {
 
       request.onload = () => {
         const data = request.response as UploadResponse | null
-        const uploaded = data?.files?.[0]
-        if (request.status >= 200 && request.status < 300 && uploaded) return resolve(uploaded)
+        if (request.status >= 200 && request.status < 300 && data) return resolve(data)
         if (request.status === 413) return reject(new NoammApiError(413, "File is too large.", data))
         reject(new NoammApiError(request.status, data?.error ?? `Upload failed (HTTP ${ request.status }).`, data))
       }
 
       request.onerror = () => reject(new NoammApiError(0, "Network error while uploading.", null))
       request.onabort = () => reject(new NoammApiError(0, "Upload cancelled.", null))
-      signal.addEventListener("abort", () => request.abort())
+      signal.addEventListener("abort", () => request.abort(), { once: true })
 
       request.send(form)
     })
