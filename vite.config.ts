@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from "vite"
+import { defineConfig, type Plugin, type ProxyOptions } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 import { readFileSync, writeFileSync } from "node:fs"
@@ -25,26 +25,29 @@ const notFoundPage = (): Plugin => ({
   }
 })
 
+const devProxy = (prefix: string, target: string): ProxyOptions => ({
+  target,
+  changeOrigin: true,
+  secure: true,
+  rewrite: (path) => path.replace(new RegExp(`^${ prefix }`), ""),
+  configure: (proxy) => {
+    proxy.on("proxyRes", (proxyRes) => {
+      const setCookie = proxyRes.headers["set-cookie"]
+      if (! setCookie) return
+
+      proxyRes.headers["set-cookie"] = (Array.isArray(setCookie) ? setCookie : [ setCookie ]).map((cookie) =>
+        cookie.replace(/\s*;\s*Secure(?=\s*;|$)/gi, "").replace(/\s*;\s*SameSite=None(?=\s*;|$)/gi, "; SameSite=Lax")
+      )
+    })
+  }
+})
+
 export default defineConfig({
   plugins: [ react(), tailwindcss(), notFoundPage() ],
   server: {
     proxy: {
-      "/api": {
-        target: "https://velox.noamm.org",
-        changeOrigin: true,
-        secure: true,
-        rewrite: (path) => path.replace(/^\/api/, ""),
-        configure: (proxy) => {
-          proxy.on("proxyRes", (proxyRes) => {
-            const setCookie = proxyRes.headers["set-cookie"]
-            if (! setCookie) return
-
-            proxyRes.headers["set-cookie"] = (Array.isArray(setCookie) ? setCookie : [ setCookie ]).map((cookie) =>
-              cookie.replace(/\s*;\s*Secure(?=\s*;|$)/gi, "").replace(/\s*;\s*SameSite=None(?=\s*;|$)/gi, "; SameSite=Lax")
-            )
-          })
-        }
-      }
+      "/api": devProxy("/api", "https://velox.noamm.org"),
+      "/filehost-api": devProxy("/filehost-api", "https://upload.noamm.org")
     }
   }
 })

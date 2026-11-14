@@ -10,6 +10,7 @@ const LoginPage = lazy(() => import("./pages/LoginPage").then((module) => ({ def
 const MePage = lazy(() => withSiteConfig(import("./pages/MePage").then((module) => ({ default: module.MePage }))))
 const DatabaseAdminPage = lazy(() => withSiteConfig(import("./pages/DatabaseAdminPage").then((module) => ({ default: module.DatabaseAdminPage }))))
 const PreviewPage = lazy(() => withSiteConfig(import("./pages/PreviewPage").then((module) => ({ default: module.PreviewPage }))))
+const FileHostPage = lazy(() => import("./pages/FileHostPage").then((module) => ({ default: module.FileHostPage })))
 const SyncthingSetupPage = lazy(() => import("./pages/guide/SyncthingSetupPage").then((module) => ({ default: module.default })))
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage").then((module) => ({ default: module.NotFoundPage })))
 
@@ -50,6 +51,7 @@ export function AppRouter() {
         <Route path="/me" element={ <MePage/> }/>
         <Route path="/database" element={ <NavigationPage><DatabaseAdminPage/></NavigationPage> }/>
         <Route path="/preview" element={ <NavigationPage><PreviewPage/></NavigationPage> }/>
+        <Route path="/filehost" element={ <NavigationPage><FileHostPage/></NavigationPage> }/>
         <Route path="/guide/syncthing" element={ <SyncthingSetupPage/> }/>
         <Route path="*" element={ <NavigationPage><NotFoundPage/></NavigationPage> }/>
       </Routes>
