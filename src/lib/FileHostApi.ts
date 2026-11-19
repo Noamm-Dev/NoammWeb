@@ -45,7 +45,7 @@ interface FilesResponse {
 
 class FileHostApi {
   readonly baseURL = import.meta.env.DEV ? "/filehost-api" : "https://upload.noamm.org"
-  readonly MAX_FILE_SIZE = 1000 * 1024 * 1024 * 1024
+  readonly MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024
   // Cloudflare rejects request bodies over 100MB before they reach the file host API, so bigger files go up in chunks
   readonly MAX_REQUEST_SIZE = 95 * 1024 * 1024
   readonly CHUNK_SIZE = 50 * 1024 * 1024
@@ -83,6 +83,14 @@ class FileHostApi {
       if (end === file.size) return this.uploadedFile(data)
       chunkToken = data.chunkToken
     }
+  }
+
+  async listFiles() {
+    return (await this.request<FilesResponse>("/upload/files", { method: "GET" })).files ?? []
+  }
+
+  async deleteFile(id: string) {
+    await this.request(`/upload/files/${ encodeURIComponent(id) }`, { method: "DELETE" })
   }
 
   // The API streams the file as it arrives, so every other field has to come before it
@@ -129,14 +137,6 @@ class FileHostApi {
 
       request.send(form)
     })
-  }
-
-  async listFiles() {
-    return (await this.request<FilesResponse>("/upload/files", { method: "GET" })).files ?? []
-  }
-
-  async deleteFile(id: string) {
-    await this.request(`/upload/files/${ encodeURIComponent(id) }`, { method: "DELETE" })
   }
 
   private session(init: RequestInit) {
