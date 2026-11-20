@@ -89,6 +89,14 @@ class FileHostApi {
     return (await this.request<FilesResponse>("/upload/files", { method: "GET" })).files ?? []
   }
 
+  async renameFile(id: string, name: string) {
+    await this.request(`/upload/files/${ encodeURIComponent(id) }`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    })
+  }
+
   async deleteFile(id: string) {
     await this.request(`/upload/files/${ encodeURIComponent(id) }`, { method: "DELETE" })
   }

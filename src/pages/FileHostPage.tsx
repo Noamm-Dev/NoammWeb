@@ -1,5 +1,5 @@
 import { type DragEvent, type FormEvent, useEffect, useRef, useState } from "react"
-import { Clock, Copy, ExternalLink, Eye, File as FileIcon, KeyRound, Link2, Lock, LogOut, RefreshCw, Trash2, Upload, X } from "lucide-react"
+import { Check, Clock, Copy, ExternalLink, Eye, File as FileIcon, KeyRound, Link2, Lock, LogOut, Pencil, RefreshCw, Trash2, Upload, X } from "lucide-react"
 import { ActionButton } from "../components/ActionButton"
 import { StatusBanner } from "../components/StatusBanner"
 import { TextField } from "../components/TextField"
@@ -43,6 +43,12 @@ const activeLinks = (files: HostedFile[]) => {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
+// Same split as the file host API, so "archive.tar.gz" keeps ".gz" and ".env" has no extension
+const splitExtension = (name: string) => {
+  const dot = name.lastIndexOf(".")
+  return dot > 0 ? [ name.slice(0, dot), name.slice(dot) ] : [ name, "" ]
+}
+
 const formatDate = (date: string) => new Date(date).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
 
 export function FileHostPage() {
@@ -60,6 +66,9 @@ export function FileHostPage() {
   const [ isLoadingLinks, setIsLoadingLinks ] = useState(false)
   const [ armedDeleteId, setArmedDeleteId ] = useState<string | null>(null)
   const [ deletingIds, setDeletingIds ] = useState<string[]>([])
+  const [ renamingId, setRenamingId ] = useState<string | null>(null)
+  const [ newName, setNewName ] = useState("")
+  const [ isRenaming, setIsRenaming ] = useState(false)
   const nextIdRef = useRef(0)
   const disarmTimeoutRef = useRef<number | undefined>(undefined)
 
@@ -105,6 +114,34 @@ export function FileHostPage() {
       if (error instanceof NoammApiError && error.status === 401) setIsAuthed(false)
       NotificationManager.notify({ message: getErrorMessage(error), tone: "error" })
     }).finally(() => setDeletingIds((ids) => ids.filter((id) => id !== file.id)))
+  }
+
+  const startRename = (file: HostedFile) => {
+    setRenamingId(file.id)
+    setNewName(splitExtension(file.name)[0])
+  }
+
+  const cancelRename = () => {
+    setRenamingId(null)
+    setNewName("")
+  }
+
+  const handleRename = (event: FormEvent<HTMLFormElement>, file: HostedFile) => {
+    event.preventDefault()
+
+    const stem = newName.trim()
+    const name = `${ stem }${ splitExtension(file.name)[1] }`
+    if (! stem || name === file.name) return cancelRename()
+
+    setIsRenaming(true)
+    FileHostApi.renameFile(file.id, name).then(() => {
+      cancelRename()
+      fetchLinks()
+      NotificationManager.notify({ message: `Renamed to ${ name }.`, tone: "success" })
+    }).catch((error) => {
+      if (error instanceof NoammApiError && error.status === 401) setIsAuthed(false)
+      NotificationManager.notify({ message: getErrorMessage(error), tone: "error" })
+    }).finally(() => setIsRenaming(false))
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -424,6 +461,44 @@ export function FileHostPage() {
                 { links.map((link) => {
                   const isArmed = armedDeleteId === link.id
 
+                  if (renamingId === link.id) return (
+                    <li className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3" key={ link.id }>
+                      <form className="flex items-center gap-3" onSubmit={ (event) => handleRename(event, link) }>
+                        <Pencil className="h-4 w-4 shrink-0 text-white/40" aria-hidden="true"/>
+                        <input
+                          aria-label="New name"
+                          autoFocus
+                          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-sm text-white outline-none transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/15 disabled:opacity-60"
+                          disabled={ isRenaming }
+                          onChange={ (event) => setNewName(event.target.value) }
+                          onKeyDown={ (event) => {
+                            if (event.key === "Escape") cancelRename()
+                          } }
+                          value={ newName }
+                        />
+                        { splitExtension(link.name)[1] ? (
+                          <span className="-ml-1 shrink-0 font-mono text-xs text-white/40">{ splitExtension(link.name)[1] }</span>
+                        ) : null }
+                        <ActionButton
+                          aria-label="Save name"
+                          className="h-9 min-h-9 w-9 rounded-lg px-0 py-0"
+                          disabled={ isRenaming }
+                          icon={ <Check className="h-3.5 w-3.5" aria-hidden="true"/> }
+                          type="submit"
+                          variant="ghost"
+                        />
+                        <ActionButton
+                          aria-label="Cancel rename"
+                          className="h-9 min-h-9 w-9 rounded-lg px-0 py-0"
+                          disabled={ isRenaming }
+                          icon={ <X className="h-3.5 w-3.5" aria-hidden="true"/> }
+                          onClick={ cancelRename }
+                          variant="ghost"
+                        />
+                      </form>
+                    </li>
+                  )
+
                   return (
                     <li className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3" key={ link.id }>
                       { link.password
@@ -453,6 +528,13 @@ export function FileHostPage() {
                       >
                         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true"/>
                       </a>
+                      <ActionButton
+                        aria-label="Rename"
+                        className="h-9 min-h-9 w-9 rounded-lg px-0 py-0"
+                        icon={ <Pencil className="h-3.5 w-3.5" aria-hidden="true"/> }
+                        onClick={ () => startRename(link) }
+                        variant="ghost"
+                      />
                       <ActionButton
                         aria-label={ isArmed ? "Click again to delete" : "Delete" }
                         className={ `h-9 min-h-9 rounded-lg py-0 ${ isArmed ? "px-3 text-red-300" : "w-9 px-0" }` }
