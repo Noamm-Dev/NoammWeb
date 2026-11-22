@@ -103,11 +103,11 @@ class FileHostApi {
     await this.request(`/upload/files/${ encodeURIComponent(id) }`, { method: "DELETE" })
   }
 
-  // Downloads the file once so Cloudflare's edge already has it cached when the link gets opened
+  // Requests the file once so Cloudflare's edge already has it cached when the link gets opened.
+  // Cloudflare caches a separate copy per Origin header, and a cors fetch that follows the redirect to Zipline sends
+  // "Origin: null", so it would warm a copy nobody opening the link gets. A no-cors GET sends no Origin, like a visitor
   async warmCache(url: string, signal: AbortSignal) {
-    const response = await fetch(url, { signal })
-    if (! response.ok) return response.body?.cancel()
-    await response.body?.pipeTo(new WritableStream())
+    await fetch(url, { mode: "no-cors", signal })
   }
 
   // The API streams the file as it arrives, so every other field has to come before it
