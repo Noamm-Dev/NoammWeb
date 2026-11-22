@@ -49,6 +49,8 @@ class FileHostApi {
   // Cloudflare rejects request bodies over 100MB before they reach the file host API, so bigger files go up in chunks
   readonly MAX_REQUEST_SIZE = 95 * 1024 * 1024
   readonly CHUNK_SIZE = 50 * 1024 * 1024
+  // Cloudflare doesn't cache files over 512MB, so warming those would only download them for nothing
+  readonly MAX_CACHED_SIZE = 512 * 1024 * 1024
 
   async isLoggedIn() {
     return (await this.session({ method: "GET" })).authenticated === true
@@ -99,6 +101,13 @@ class FileHostApi {
 
   async deleteFile(id: string) {
     await this.request(`/upload/files/${ encodeURIComponent(id) }`, { method: "DELETE" })
+  }
+
+  // Downloads the file once so Cloudflare's edge already has it cached when the link gets opened
+  async warmCache(url: string, signal: AbortSignal) {
+    const response = await fetch(url, { signal })
+    if (! response.ok) return response.body?.cancel()
+    await response.body?.pipeTo(new WritableStream())
   }
 
   // The API streams the file as it arrives, so every other field has to come before it

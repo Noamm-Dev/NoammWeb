@@ -10,11 +10,14 @@ import { getErrorMessage } from "../utils"
 
 type UploadStatus = "uploading" | "done" | "error"
 
+type PreviewKind = "image" | "video" | "audio"
+
 interface UploadItem {
   controller: AbortController
   error: string | null
   file: File
   id: number
+  preview: { kind: PreviewKind, url: string } | null
   progress: number
   result: UploadedFile | null
   status: UploadStatus
@@ -38,9 +41,7 @@ const formatSize = (bytes: number) => {
 // Zipline keeps listing expired or used up files until its cleanup job deletes them
 const activeLinks = (files: HostedFile[]) => {
   const now = Date.now()
-  return files
-    .filter((file) => (! file.deletesAt || Date.parse(file.deletesAt) > now) && (file.maxViews === null || file.views < file.maxViews))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  return files.filter((file) => (! file.deletesAt || Date.parse(file.deletesAt) > now) && (file.maxViews === null || file.views < file.maxViews)).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
 // Same split as the file host API, so "archive.tar.gz" keeps ".gz" and ".env" has no extension
@@ -49,7 +50,61 @@ const splitExtension = (name: string) => {
   return dot > 0 ? [ name.slice(0, dot), name.slice(dot) ] : [ name, "" ]
 }
 
+const PREVIEW_KINDS: PreviewKind[] = [ "image", "video", "audio" ]
+
+const previewOf = (file: File) => {
+  const kind = PREVIEW_KINDS.find((previewKind) => file.type.startsWith(`${ previewKind }/`))
+  return kind ? { kind, url: URL.createObjectURL(file) } : null
+}
+
 const formatDate = (date: string) => new Date(date).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+
+const relativeTime = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" })
+
+const formatExpiry = (date: string) => {
+  const minutes = Math.round((Date.parse(date) - Date.now()) / 60000)
+  if (minutes < 60) return relativeTime.format(minutes, "minute")
+  if (minutes < 60 * 24) return relativeTime.format(Math.round(minutes / 60), "hour")
+  return relativeTime.format(Math.round(minutes / 60 / 24), "day")
+}
+
+type FileKind = "image" | "video" | "audio" | "archive" | "other"
+
+const KIND_EXTENSIONS: [ FileKind, string[] ][] = [
+  [ "image", [ ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg", ".bmp", ".ico" ] ],
+  [ "video", [ ".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v" ] ],
+  [ "audio", [ ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".opus" ] ],
+  [ "archive", [ ".zip", ".rar", ".7z", ".tar", ".gz", ".xz", ".jar" ] ]
+]
+
+const KIND_STYLES: Record<FileKind, string> = {
+  image: "bg-[#70a7ff]/12 text-[#9cc2ff]",
+  video: "bg-violet-400/12 text-violet-300",
+  audio: "bg-emerald-400/12 text-emerald-300",
+  archive: "bg-amber-400/12 text-amber-300",
+  other: "bg-white/[0.06] text-white/55"
+}
+
+const fileKind = (extension: string) => KIND_EXTENSIONS.find(([ , extensions ]) => extensions.includes(extension.toLowerCase()))?.[0] ?? "other"
+
+const TOOLBAR_INPUT_CLASSES = "rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-sm text-white outline-none transition placeholder:text-white/28 focus:border-[#70a7ff]/50 focus:ring-4 focus:ring-[#70a7ff]/15"
+
+function FileTile({ name, password = false, thumbnail = null }: { name: string, password?: boolean, thumbnail?: string | null }) {
+  const extension = splitExtension(name)[1]
+
+  return (
+    <div className={ `relative grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[10px] font-bold tracking-wide ${ KIND_STYLES[fileKind(extension)] }` }>
+      { thumbnail
+        ? <img alt="" className="h-full w-full rounded-xl object-cover" src={ thumbnail }/>
+        : extension.slice(1, 5).toUpperCase() || <FileIcon className="h-4 w-4" aria-hidden="true"/> }
+      { password ? (
+        <span className="absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full bg-[#1a1a22] text-white/70 ring-2 ring-[#0a0a0a]">
+          <Lock className="h-2.5 w-2.5" aria-label="Password protected"/>
+        </span>
+      ) : null }
+    </div>
+  )
+}
 
 export function FileHostPage() {
   const [ isAuthed, setIsAuthed ] = useState<boolean | null>(null)
@@ -58,7 +113,7 @@ export function FileHostPage() {
   const [ loginError, setLoginError ] = useState<string | null>(null)
   const [ items, setItems ] = useState<UploadItem[]>([])
   const [ isDragging, setIsDragging ] = useState(false)
-  const [ expiresIn, setExpiresIn ] = useState<string | null>(null)
+  const [ expiresIn, setExpiresIn ] = useState<string | null>("7d")
   const [ maxViews, setMaxViews ] = useState("")
   const [ password, setPassword ] = useState("")
   const [ links, setLinks ] = useState<HostedFile[] | null>(null)
@@ -167,7 +222,10 @@ export function FileHostPage() {
   }
 
   const handleLogout = () => {
-    items.forEach((item) => item.controller.abort())
+    items.forEach((item) => {
+      item.controller.abort()
+      if (item.preview) URL.revokeObjectURL(item.preview.url)
+    })
     setItems([])
     setLinks(null)
     setIsAuthed(false)
@@ -190,6 +248,7 @@ export function FileHostPage() {
       error: tooLarge ? `Files can be at most ${ formatSize(FileHostApi.MAX_FILE_SIZE) }.` : null,
       file,
       id,
+      preview: tooLarge ? null : previewOf(file),
       progress: 0,
       result: null,
       status: tooLarge ? "error" : "uploading"
@@ -200,6 +259,12 @@ export function FileHostPage() {
     FileHostApi.upload(file, options, (progress) => updateItem(id, { progress }), controller.signal).then((result) => {
       updateItem(id, { progress: 1, result, status: "done" })
       fetchLinks()
+
+      // Warming counts as a view, a password-protected link needs the password, and a pending
+      // chunked upload isn't on Zipline yet, so Cloudflare would cache its 404 instead
+      if (result.pending || options.maxViews || options.password || file.size > FileHostApi.MAX_CACHED_SIZE) return
+      void FileHostApi.warmCache(result.raw, controller.signal).catch(() => {
+      })
     }).catch((error) => {
       if (controller.signal.aborted) return
       if (error instanceof NoammApiError && error.status === 401) setIsAuthed(false)
@@ -215,6 +280,7 @@ export function FileHostPage() {
 
   const removeItem = (item: UploadItem) => {
     item.controller.abort()
+    if (item.preview) URL.revokeObjectURL(item.preview.url)
     setItems((currentItems) => currentItems.filter((currentItem) => currentItem.id !== item.id))
   }
 
@@ -222,7 +288,18 @@ export function FileHostPage() {
     navigator.clipboard.writeText(url).then(() => NotificationManager.notify({ message: "Link copied.", tone: "success" })).catch(() => NotificationManager.notify({ message: "Couldn't copy the link.", tone: "error" }))
   }
 
-  const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
+  const handleDragOver = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    setIsDragging(true)
+  }
+
+  // dragleave also fires when the pointer moves onto a child, so only stop once it leaves the drop area itself
+  const handleDragLeave = (event: DragEvent<HTMLElement>) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    setIsDragging(false)
+  }
+
+  const handleDrop = (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
     setIsDragging(false)
     addFiles(event.dataTransfer.files)
@@ -231,80 +308,75 @@ export function FileHostPage() {
   if (isAuthed === null) return null
 
   if (! isAuthed) return (
-    <main className="relative grid min-h-screen place-items-center px-5 py-8">
-      <section className="glass-card w-full max-w-[460px] p-6 sm:p-8">
-        <div className="mb-7 text-center">
-          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/[0.045] text-[#70a7ff]">
-            <Upload className="h-6 w-6" aria-hidden="true"/>
+    <main className="relative grid place-items-center px-5 py-8">
+      <form className="flex w-full max-w-[340px] flex-col gap-5 text-left" onSubmit={ handleLogin }>
+        <div className="mb-3 flex items-center gap-3">
+          <div className="grid h-11 w-11 place-items-center rounded-xl bg-[#70a7ff]/12 text-[#9cc2ff]">
+            <Upload className="h-5 w-5" aria-hidden="true"/>
           </div>
-          <h1 className="gradient-text text-3xl font-extrabold">
-            File Host
-          </h1>
+          <div>
+            <h1 className="text-lg font-semibold leading-tight text-white">File Host</h1>
+            <p className="text-sm text-white/45">Log in with the admin password.</p>
+          </div>
         </div>
 
-        <form className="mt-5 flex flex-col gap-5" onSubmit={ handleLogin }>
-          <TextField
-            autoComplete="current-password"
-            icon={ <KeyRound className="h-3.5 w-3.5" aria-hidden="true"/> }
-            label="Admin Password"
-            onChange={ (event) => setAdminPassword(event.target.value) }
-            placeholder="Enter Password"
-            type="password"
-            value={ adminPassword }
-          />
+        <TextField
+          autoComplete="current-password"
+          icon={ <KeyRound className="h-3.5 w-3.5" aria-hidden="true"/> }
+          label="Admin Password"
+          onChange={ (event) => setAdminPassword(event.target.value) }
+          placeholder="Enter Password"
+          type="password"
+          value={ adminPassword }
+        />
 
-          <StatusBanner message={ loginError } tone="error"/>
+        <StatusBanner message={ loginError } tone="error"/>
 
-          <ActionButton
-            disabled={ isLoggingIn }
-            icon={ <KeyRound className="h-4 w-4" aria-hidden="true"/> }
-            type="submit"
-            variant="primary"
-          >
-            { isLoggingIn ? "Connecting..." : "Login" }
-          </ActionButton>
-        </form>
-      </section>
+        <ActionButton
+          disabled={ isLoggingIn }
+          icon={ <KeyRound className="h-4 w-4" aria-hidden="true"/> }
+          type="submit"
+          variant="primary"
+        >
+          { isLoggingIn ? "Logging in..." : "Log in" }
+        </ActionButton>
+      </form>
     </main>
   )
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4 py-8">
-      <section className="glass-card mx-auto flex w-full max-w-3xl flex-col px-8 py-7 sm:px-9 sm:py-8">
-        <div className="mb-8 flex items-center justify-between gap-4 border-b border-white/[0.04] pb-6">
-          <div className="flex min-w-0 items-center gap-4">
-            <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full border border-white/10 bg-[#111116] text-[#70a7ff] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]">
-              <Upload className="h-6 w-6" aria-hidden="true"/>
-            </div>
-            <div className="min-w-0 text-left">
-              <h1 className="text-xl font-bold leading-none tracking-tight text-white">File Host</h1>
-              <p className="mt-1 text-xs font-medium text-zinc-500">Upload files and get a share link</p>
-            </div>
+    <main className="relative flex flex-col border-t border-white/[0.06] lg:grid lg:h-[calc(100vh-4.75rem)] lg:grid-cols-[420px_minmax(0,1fr)] xl:grid-cols-[480px_minmax(0,1fr)]">
+      <section
+        className="relative flex min-h-0 flex-col lg:col-start-2 lg:row-start-1 lg:overflow-y-auto"
+        onDragLeave={ handleDragLeave }
+        onDragOver={ handleDragOver }
+        onDrop={ handleDrop }
+      >
+        <header className="flex items-center justify-between gap-4 border-b border-white/[0.06] px-5 py-4 sm:px-8">
+          <div className="flex items-center gap-3">
+            <Upload className="h-4 w-4 text-[#9cc2ff]" aria-hidden="true"/>
+            <h1 className="text-sm font-semibold text-white">File Host</h1>
           </div>
           <ActionButton
-            className="h-9 min-h-9 rounded-xl px-3 py-0 text-[10px] font-bold uppercase tracking-wider"
+            className="h-8 min-h-8 rounded-lg px-2.5 py-0 text-xs"
             icon={ <LogOut className="h-3.5 w-3.5" aria-hidden="true"/> }
             onClick={ handleLogout }
-            variant="secondary"
+            variant="ghost"
           >
-            Logout
+            Log out
           </ActionButton>
-        </div>
+        </header>
 
-        <div className="flex flex-col gap-5 text-left">
-          <div>
-            <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-white/60">
-              <Clock className="h-3.5 w-3.5" aria-hidden="true"/>
-              <span>Expires</span>
-            </span>
-            <div className="flex flex-wrap gap-2 rounded-xl border border-white/10 bg-white/[0.05] p-1.5">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-white/[0.06] px-5 py-3 text-sm sm:px-8">
+          <div className="flex items-center gap-2">
+            <Clock className="h-3.5 w-3.5 text-white/40" aria-hidden="true"/>
+            <span className="text-white/50">Expires</span>
+            <div className="flex rounded-lg bg-white/[0.04] p-0.5" role="group" aria-label="Expires">
               { EXPIRY_OPTIONS.map((option) => (
                 <button
                   aria-pressed={ expiresIn === option.value }
-                  className={ `inline-flex min-h-9 flex-1 items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition duration-300 ${
-                    expiresIn === option.value
-                      ? "bg-white/10 text-white shadow-[0_0_0_1px_rgba(96,165,250,0.24)]"
-                      : "text-white/50 hover:bg-[#60a5fa]/5 hover:text-white/80"
+                  className={ `rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    expiresIn === option.value ? "bg-white/10 text-white" : "text-white/45 hover:text-white/80"
                   }` }
                   key={ option.label }
                   onClick={ () => setExpiresIn(option.value) }
@@ -316,45 +388,52 @@ export function FileHostPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <TextField
+          <label className="flex items-center gap-2">
+            <Eye className="h-3.5 w-3.5 text-white/40" aria-hidden="true"/>
+            <span className="text-white/50">Max views</span>
+            <input
               autoComplete="off"
-              icon={ <Eye className="h-3.5 w-3.5" aria-hidden="true"/> }
+              className={ `${ TOOLBAR_INPUT_CLASSES } w-24` }
               inputMode="numeric"
-              label="Max Views"
               onChange={ (event) => setMaxViews(event.target.value.replace(/\D/g, "")) }
               placeholder="Unlimited"
               value={ maxViews }
             />
-            <TextField
+          </label>
+
+          <label className="flex items-center gap-2">
+            <Lock className="h-3.5 w-3.5 text-white/40" aria-hidden="true"/>
+            <span className="text-white/50">Password</span>
+            <input
               autoComplete="new-password"
-              icon={ <Lock className="h-3.5 w-3.5" aria-hidden="true"/> }
-              label="Password"
+              className={ `${ TOOLBAR_INPUT_CLASSES } w-32` }
               onChange={ (event) => setPassword(event.target.value) }
               placeholder="None"
               type="password"
               value={ password }
             />
-          </div>
+          </label>
+        </div>
 
+        <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-5 py-8 sm:px-8">
           <label
-            className={ `flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-6 py-12 text-center transition duration-200 ${
-              isDragging
-                ? "border-cyan-300/60 bg-cyan-400/10"
-                : "border-white/15 bg-white/[0.035] hover:border-white/30 hover:bg-white/[0.05]"
+            className={ `group flex min-h-[38vh] cursor-pointer flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed px-6 py-14 text-center transition-colors duration-200 has-[:focus-visible]:border-[#70a7ff]/60 ${
+              isDragging ? "border-[#70a7ff]/70 bg-[#70a7ff]/[0.07]" : "border-white/10 hover:border-white/20"
             }` }
-            onDragLeave={ () => setIsDragging(false) }
-            onDragOver={ (event) => {
-              event.preventDefault()
-              setIsDragging(true)
-            } }
-            onDrop={ handleDrop }
           >
-            <Upload className="h-8 w-8 text-white/40" aria-hidden="true"/>
-            <span className="text-sm font-semibold text-white">Drop files here or click to choose</span>
-            <span className="text-xs text-white/40">Up to { formatSize(FileHostApi.MAX_FILE_SIZE) } per file</span>
+            <div className={ `grid h-16 w-16 place-items-center rounded-2xl transition-transform duration-200 ${ isDragging ? "scale-110 bg-[#70a7ff]/20 text-[#cfe0ff]" : "bg-white/[0.05] text-white/60 group-hover:text-white/80" }` }>
+              <Upload className="h-7 w-7" aria-hidden="true"/>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                { isDragging ? "Release to upload" : "Drop files to upload" }
+              </p>
+              <p className="mt-2 text-sm text-white/45">
+                or <span className="font-medium text-[#9cc2ff] underline decoration-[#9cc2ff]/40 underline-offset-4">browse your computer</span>, up to { formatSize(FileHostApi.MAX_FILE_SIZE) } each
+              </p>
+            </div>
             <input
-              className="hidden"
+              className="sr-only"
               multiple
               onChange={ (event) => {
                 addFiles(event.target.files)
@@ -365,30 +444,37 @@ export function FileHostPage() {
           </label>
 
           { items.length > 0 ? (
-            <ul className="flex flex-col gap-3">
+            <ul className="flex flex-col divide-y divide-white/[0.06]">
               { items.map((item) => {
                 const { result } = item
+                const [ stem, extension ] = splitExtension(item.file.name)
 
                 return (
-                  <li className="animate-panel-in rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3" key={ item.id }>
+                  <li className="animate-panel-in py-3" key={ item.id }>
                     <div className="flex items-center gap-3">
-                      <FileIcon className="h-4 w-4 shrink-0 text-white/40" aria-hidden="true"/>
+                      <FileTile name={ item.file.name } thumbnail={ item.preview?.kind === "image" ? item.preview.url : null }/>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-white">{ item.file.name }</p>
-                        <p className="text-xs text-white/40">{ formatSize(item.file.size) }</p>
+                        <p className="truncate text-sm font-medium text-white" title={ item.file.name }>
+                          { stem }<span className="text-white/35">{ extension }</span>
+                        </p>
+                        <p className="mt-0.5 text-xs tabular-nums text-white/40">
+                          { item.status === "uploading" ? `${ Math.round(item.progress * 100) }% of ${ formatSize(item.file.size) }` : formatSize(item.file.size) }
+                          { item.status === "done" ? <span className="ml-3 text-emerald-300/80">Uploaded</span> : null }
+                        </p>
                       </div>
                       { result ? (
                         <>
                           <ActionButton
-                            aria-label="Copy link"
-                            className="h-9 min-h-9 w-9 rounded-lg px-0 py-0"
+                            className="h-8 min-h-8 rounded-lg px-2.5 py-0 text-xs"
                             icon={ <Copy className="h-3.5 w-3.5" aria-hidden="true"/> }
                             onClick={ () => copyLink(result.url) }
-                            variant="ghost"
-                          />
+                            variant="secondary"
+                          >
+                            Copy link
+                          </ActionButton>
                           <a
                             aria-label="Open file"
-                            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white/70 transition hover:bg-white/[0.06] hover:text-white"
+                            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/70 transition hover:bg-white/[0.06] hover:text-white"
                             href={ result.url }
                             rel="noreferrer"
                             target="_blank"
@@ -399,7 +485,7 @@ export function FileHostPage() {
                       ) : null }
                       <ActionButton
                         aria-label={ item.status === "uploading" ? "Cancel upload" : "Remove" }
-                        className="h-9 min-h-9 w-9 rounded-lg px-0 py-0"
+                        className="h-8 min-h-8 w-8 rounded-lg px-0 py-0"
                         icon={ <X className="h-3.5 w-3.5" aria-hidden="true"/> }
                         onClick={ () => removeItem(item) }
                         variant="ghost"
@@ -407,17 +493,31 @@ export function FileHostPage() {
                     </div>
 
                     { item.status === "uploading" ? (
-                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+                      <div className="ml-[3.25rem] mt-2.5 h-1 overflow-hidden rounded-full bg-white/10">
                         <div
-                          className="h-full rounded-full bg-cyan-300 transition-[width] duration-200"
+                          className="h-full rounded-full bg-gradient-to-r from-[#60a5fa] to-[#22d3ee] transition-[width] duration-200"
                           style={ { width: `${ Math.round(item.progress * 100) }%` } }
                         />
                       </div>
                     ) : null }
 
+                    { item.preview && item.preview.kind !== "audio" ? (
+                      <div className="ml-[3.25rem] mt-3 flex justify-start">
+                        { item.preview.kind === "image" ? (
+                          <img alt={ item.file.name } className="max-h-72 rounded-xl object-contain" src={ item.preview.url }/>
+                        ) : (
+                          <video className="max-h-72 w-full rounded-xl bg-black" controls src={ item.preview.url }/>
+                        ) }
+                      </div>
+                    ) : null }
+
+                    { item.preview?.kind === "audio" ? (
+                      <audio className="ml-[3.25rem] mt-3 w-[calc(100%-3.25rem)]" controls src={ item.preview.url }/>
+                    ) : null }
+
                     { result ? (
                       <button
-                        className="mt-2 block w-full truncate rounded-lg border border-white/10 bg-black/15 px-2 py-1 text-left font-mono text-[11px] text-white/55 transition hover:text-white/80"
+                        className="ml-[3.25rem] mt-2 block max-w-[calc(100%-3.25rem)] truncate text-left text-xs text-white/40 transition hover:text-[#9cc2ff]"
                         onClick={ () => copyLink(result.url) }
                         type="button"
                       >
@@ -426,133 +526,156 @@ export function FileHostPage() {
                     ) : null }
 
                     { item.error ? (
-                      <p className="mt-2 text-xs text-red-200" role="alert">{ item.error }</p>
+                      <p className="ml-[3.25rem] mt-2 text-xs text-red-300" role="alert">{ item.error }</p>
                     ) : null }
                   </li>
                 )
               }) }
             </ul>
           ) : null }
-
-          <div className="border-t border-white/[0.04] pt-5">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2 text-xs font-semibold uppercase text-white/60">
-                <Link2 className="h-3.5 w-3.5" aria-hidden="true"/>
-                <span>Active Links{ links ? ` (${ links.length })` : "" }</span>
-              </span>
-              <ActionButton
-                aria-label="Refresh links"
-                className="h-9 min-h-9 w-9 rounded-lg px-0 py-0"
-                disabled={ isLoadingLinks }
-                icon={ <RefreshCw className={ `h-3.5 w-3.5 ${ isLoadingLinks ? "animate-spin" : "" }` } aria-hidden="true"/> }
-                onClick={ refreshLinks }
-                variant="ghost"
-              />
-            </div>
-
-            <StatusBanner message={ linksError } tone="error"/>
-
-            { links?.length === 0 ? (
-              <p className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-6 text-center text-sm text-white/40">No active links.</p>
-            ) : null }
-
-            { links?.length ? (
-              <ul className="flex flex-col gap-2">
-                { links.map((link) => {
-                  const isArmed = armedDeleteId === link.id
-
-                  if (renamingId === link.id) return (
-                    <li className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3" key={ link.id }>
-                      <form className="flex items-center gap-3" onSubmit={ (event) => handleRename(event, link) }>
-                        <Pencil className="h-4 w-4 shrink-0 text-white/40" aria-hidden="true"/>
-                        <input
-                          aria-label="New name"
-                          autoFocus
-                          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-1.5 text-sm text-white outline-none transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/15 disabled:opacity-60"
-                          disabled={ isRenaming }
-                          onChange={ (event) => setNewName(event.target.value) }
-                          onKeyDown={ (event) => {
-                            if (event.key === "Escape") cancelRename()
-                          } }
-                          value={ newName }
-                        />
-                        { splitExtension(link.name)[1] ? (
-                          <span className="-ml-1 shrink-0 font-mono text-xs text-white/40">{ splitExtension(link.name)[1] }</span>
-                        ) : null }
-                        <ActionButton
-                          aria-label="Save name"
-                          className="h-9 min-h-9 w-9 rounded-lg px-0 py-0"
-                          disabled={ isRenaming }
-                          icon={ <Check className="h-3.5 w-3.5" aria-hidden="true"/> }
-                          type="submit"
-                          variant="ghost"
-                        />
-                        <ActionButton
-                          aria-label="Cancel rename"
-                          className="h-9 min-h-9 w-9 rounded-lg px-0 py-0"
-                          disabled={ isRenaming }
-                          icon={ <X className="h-3.5 w-3.5" aria-hidden="true"/> }
-                          onClick={ cancelRename }
-                          variant="ghost"
-                        />
-                      </form>
-                    </li>
-                  )
-
-                  return (
-                    <li className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3" key={ link.id }>
-                      { link.password
-                        ? <Lock className="h-4 w-4 shrink-0 text-white/40" aria-label="Password protected"/>
-                        : <FileIcon className="h-4 w-4 shrink-0 text-white/40" aria-hidden="true"/> }
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-white">{ link.name }</p>
-                        <p className="truncate text-xs text-white/40">
-                          { formatSize(link.size) }
-                          { ` · ${ link.views }${ link.maxViews === null ? "" : `/${ link.maxViews }` } views` }
-                          { link.deletesAt ? ` · expires ${ formatDate(link.deletesAt) }` : "" }
-                        </p>
-                      </div>
-                      <ActionButton
-                        aria-label="Copy link"
-                        className="h-9 min-h-9 w-9 rounded-lg px-0 py-0"
-                        icon={ <Copy className="h-3.5 w-3.5" aria-hidden="true"/> }
-                        onClick={ () => copyLink(link.url) }
-                        variant="ghost"
-                      />
-                      <a
-                        aria-label="Open file"
-                        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white/70 transition hover:bg-white/[0.06] hover:text-white"
-                        href={ link.url }
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true"/>
-                      </a>
-                      <ActionButton
-                        aria-label="Rename"
-                        className="h-9 min-h-9 w-9 rounded-lg px-0 py-0"
-                        icon={ <Pencil className="h-3.5 w-3.5" aria-hidden="true"/> }
-                        onClick={ () => startRename(link) }
-                        variant="ghost"
-                      />
-                      <ActionButton
-                        aria-label={ isArmed ? "Click again to delete" : "Delete" }
-                        className={ `h-9 min-h-9 rounded-lg py-0 ${ isArmed ? "px-3 text-red-300" : "w-9 px-0" }` }
-                        disabled={ deletingIds.includes(link.id) }
-                        icon={ <Trash2 className="h-3.5 w-3.5" aria-hidden="true"/> }
-                        onClick={ () => handleDelete(link) }
-                        variant="ghost"
-                      >
-                        { isArmed ? "Delete?" : null }
-                      </ActionButton>
-                    </li>
-                  )
-                }) }
-              </ul>
-            ) : null }
-          </div>
         </div>
       </section>
+
+      <aside className="flex min-h-0 flex-col border-t border-white/[0.06] bg-black/25 text-left lg:col-start-1 lg:row-start-1 lg:border-r lg:border-t-0">
+        <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
+          <h2 className="flex items-baseline gap-2 text-sm font-semibold text-white">
+            Active links
+            { links ? <span className="text-xs font-medium tabular-nums text-white/35">{ links.length }</span> : null }
+          </h2>
+          <ActionButton
+            aria-label="Refresh links"
+            className="-my-1 h-8 min-h-8 w-8 rounded-lg px-0 py-0"
+            disabled={ isLoadingLinks }
+            icon={ <RefreshCw className={ `h-3.5 w-3.5 ${ isLoadingLinks ? "animate-spin" : "" }` } aria-hidden="true"/> }
+            onClick={ refreshLinks }
+            variant="ghost"
+          />
+        </div>
+
+        { linksError ? (
+          <div className="px-3 pt-3">
+            <StatusBanner message={ linksError } tone="error"/>
+          </div>
+        ) : null }
+
+        { links?.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-5 py-12 text-center">
+            <Link2 className="h-5 w-5 text-white/25" aria-hidden="true"/>
+            <p className="text-sm text-white/45">Files you upload show up here.</p>
+          </div>
+        ) : null }
+
+        { links?.length ? (
+          <ul className="flex min-h-0 flex-col overflow-y-auto p-2">
+            { links.map((link) => {
+              const isArmed = armedDeleteId === link.id
+              const [ stem, extension ] = splitExtension(link.name)
+
+              if (renamingId === link.id) return (
+                <li className="rounded-xl bg-white/[0.05] px-2 py-2" key={ link.id }>
+                  <form className="flex items-center gap-3" onSubmit={ (event) => handleRename(event, link) }>
+                    <FileTile name={ link.name } password={ link.password }/>
+                    <div className="flex min-w-0 flex-1 items-center rounded-lg border border-white/10 bg-black/20 pr-2 transition focus-within:border-[#70a7ff]/50 focus-within:ring-4 focus-within:ring-[#70a7ff]/15">
+                      <input
+                        aria-label="New name"
+                        autoFocus
+                        className="min-w-0 flex-1 bg-transparent px-2.5 py-1.5 text-sm text-white outline-none disabled:opacity-60"
+                        disabled={ isRenaming }
+                        onChange={ (event) => setNewName(event.target.value) }
+                        onKeyDown={ (event) => {
+                          if (event.key === "Escape") cancelRename()
+                        } }
+                        value={ newName }
+                      />
+                      { extension ? <span className="shrink-0 text-sm text-white/35">{ extension }</span> : null }
+                    </div>
+                    <ActionButton
+                      aria-label="Save name"
+                      className="h-8 min-h-8 w-8 rounded-lg px-0 py-0"
+                      disabled={ isRenaming }
+                      icon={ <Check className="h-3.5 w-3.5" aria-hidden="true"/> }
+                      type="submit"
+                      variant="ghost"
+                    />
+                    <ActionButton
+                      aria-label="Cancel rename"
+                      className="h-8 min-h-8 w-8 rounded-lg px-0 py-0"
+                      disabled={ isRenaming }
+                      icon={ <X className="h-3.5 w-3.5" aria-hidden="true"/> }
+                      onClick={ cancelRename }
+                      variant="ghost"
+                    />
+                  </form>
+                </li>
+              )
+
+              return (
+                <li className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors focus-within:bg-white/[0.04] hover:bg-white/[0.04]" key={ link.id }>
+                  <FileTile name={ link.name } password={ link.password }/>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-white" title={ link.name }>
+                      { stem }<span className="text-white/35">{ extension }</span>
+                    </p>
+                    <p className="mt-0.5 flex items-center gap-3 text-xs tabular-nums text-white/40">
+                      <span className="shrink-0">{ formatSize(link.size) }</span>
+                      <span className="flex shrink-0 items-center gap-1">
+                        <Eye className="h-3 w-3" aria-hidden="true"/>
+                        { link.views }{ link.maxViews === null ? "" : `/${ link.maxViews }` }
+                      </span>
+                      { link.deletesAt ? (
+                        <span className="flex min-w-0 items-center gap-1" title={ `Expires ${ formatDate(link.deletesAt) }` }>
+                          <Clock className="h-3 w-3 shrink-0" aria-hidden="true"/>
+                          <span className="truncate">{ formatExpiry(link.deletesAt) }</span>
+                        </span>
+                      ) : null }
+                    </p>
+                    { link.maxViews !== null ? (
+                      <div className="mt-1.5 h-0.5 overflow-hidden rounded-full bg-white/10">
+                        <div className="h-full rounded-full bg-[#70a7ff]/70" style={ { width: `${ Math.min(100, link.views / link.maxViews * 100) }%` } }/>
+                      </div>
+                    ) : null }
+                  </div>
+                  <div className={ `flex shrink-0 items-center transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 ${ isArmed ? "" : "[@media(hover:hover)]:opacity-0" }` }>
+                    <ActionButton
+                      aria-label="Copy link"
+                      className="h-8 min-h-8 w-8 rounded-lg px-0 py-0"
+                      icon={ <Copy className="h-3.5 w-3.5" aria-hidden="true"/> }
+                      onClick={ () => copyLink(link.url) }
+                      variant="ghost"
+                    />
+                    <a
+                      aria-label="Open file"
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/70 transition hover:bg-white/[0.06] hover:text-white"
+                      href={ link.url }
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true"/>
+                    </a>
+                    <ActionButton
+                      aria-label="Rename"
+                      className="h-8 min-h-8 w-8 rounded-lg px-0 py-0"
+                      icon={ <Pencil className="h-3.5 w-3.5" aria-hidden="true"/> }
+                      onClick={ () => startRename(link) }
+                      variant="ghost"
+                    />
+                    <ActionButton
+                      aria-label={ isArmed ? "Click again to delete" : "Delete" }
+                      className={ `h-8 min-h-8 rounded-lg py-0 ${ isArmed ? "bg-red-400/10 px-2.5 text-red-300" : "w-8 px-0 hover:text-red-300" }` }
+                      disabled={ deletingIds.includes(link.id) }
+                      icon={ <Trash2 className="h-3.5 w-3.5" aria-hidden="true"/> }
+                      onClick={ () => handleDelete(link) }
+                      variant="ghost"
+                    >
+                      { isArmed ? "Delete?" : null }
+                    </ActionButton>
+                  </div>
+                </li>
+              )
+            }) }
+          </ul>
+        ) : null }
+      </aside>
     </main>
   )
 }
